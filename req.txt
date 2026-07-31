@@ -1,0 +1,10 @@
+Combine process parameters (temperature, speed, pressure, material properties) with image or sensor data to predict and classify product defects early in the production line.
+Why Ultra-Modern & Industrial
+Shifts quality management from reactive inspection to predictive and automated control. Widely adopted in automotive, electronics, and discrete manufacturing environments.
+Student Scope
+•    Fuse tabular process data with image features (or use pre-extracted features)
+•    Build multi-modal models or classical ML combined with computer-vision pipelines
+•    Analyze root causes of defects and recommend parameter adjustments
+•    Calculate cost of poor quality and potential savings
+Recommended Tools
+Python (OpenCV, Scikit-learn, TensorFlow/PyTorch), Power BI for quality dashboards. Many public manufacturing defect datasets are available

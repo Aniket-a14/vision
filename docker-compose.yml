@@ -1,0 +1,31 @@
+name: defectlab
+
+services:
+  postgres:
+    image: timescale/timescaledb:2.26.0-pg18
+    environment:
+      POSTGRES_USER: defectlab
+      POSTGRES_PASSWORD: defectlab
+      POSTGRES_DB: defectlab
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U defectlab"]
+      interval: 5s
+      retries: 10
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports: ["1883:1883"]
+    volumes:
+      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  redis:
+    image: redis:8-alpine
+    ports: ["6379:6379"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+volumes:
+  pgdata:
