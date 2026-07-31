@@ -20,16 +20,20 @@ Every week has a **gate**. If a gate fails, you do not proceed — you drop to t
 
 ### Measured on this machine (4C/8T i7-1195G7), 2026-08-01
 
-| Backbone | Dim | Per regime (7,348 images) | Four regimes |
+Train (6,633) and test (715) together are the 7,348 images, so a *regime* costs one pass
+over the whole dataset and there are only two regimes, not four.
+
+| Backbone | Dim | Per regime (7,348 images) | Both regimes |
 |---|---|---|---|
-| `resnet18` | 512 | **28 min** | ~1.9 h |
-| `dinov2_s` (ViT-S/14 @224) | 384 | **52 min** | ~3.5 h |
+| `resnet18` | 512 | **28 min** | ~56 min |
+| `dinov2_s` (ViT-S/14 @224) | 384 | **52 min** | ~1 h 45 min |
 
 **Consequences, decided:**
-- The four headline caches use **`dinov2_s`** — a one-off 3.5 h, run overnight.
+- Headline caches use **`dinov2_s`**; `resnet18` is kept as a cheap fallback and a
+  backbone-comparison row in the results table.
 - The **degradation sweep uses `resnet18` on a fixed 1,500-image subsample.** A sweep over
-  6 severities × 2 splits is 12 extractions; at full size that is 5.6 h with ResNet and
-  10 h with DINOv2, which does not fit. Subsampling is stated in the report.
+  6 severities is 6 extra passes; at full size that is 2.8 h with ResNet and 5 h with
+  DINOv2. Subsampling is stated in the report.
 - Regenerating a cache is never on the critical path — the cache is keyed by
   `(split, backbone, regime)` and reused by every downstream experiment.
 
