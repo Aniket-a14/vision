@@ -27,6 +27,29 @@ uv run pytest tests -q
 docker compose up -d
 ```
 
+## Getting the dataset
+
+The casting images are not redistributable, so download them yourself:
+
+```bash
+# needs ~/.kaggle/kaggle.json from https://www.kaggle.com/settings
+uv run kaggle datasets download -d ravirajsinh45/real-life-industrial-dataset-of-casting-product
+```
+
+Extract so the layout is `data/raw/casting_data/{train,test}/{def_front,ok_front}/`, then:
+
+```bash
+uv run defectlab verify     # asserts 3758/2875 train, 453/262 test
+uv run defectlab simulate   # twin -> paired parquet tables
+uv run defectlab extract --backbone dinov2_s --regime both
+```
+
+`defectlab gates` prints the leakage and prevalence diagnostics without training anything,
+and needs no dataset at all.
+
+**Measured extraction cost on a 4-core i7-1195G7:** `resnet18` 28 min per regime,
+`dinov2_s` 52 min per regime. Caches are keyed by `(split, backbone, regime)` and reused.
+
 ## Design documents
 
 | Document | Contents |
