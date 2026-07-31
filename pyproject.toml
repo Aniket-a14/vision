@@ -79,9 +79,10 @@ max-args = 8
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["PLR2004", "PLC0415", "E501"]
-# torch, timm and PIL are imported lazily to keep the camera model dependency-free.
+# Heavy optional dependencies are imported lazily inside their factory functions.
 "src/defectlab/imaging/backbones.py" = ["PLC0415"]
 "src/defectlab/imaging/features.py" = ["PLC0415"]
+"src/defectlab/models/estimators.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
