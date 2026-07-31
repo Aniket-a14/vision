@@ -14,11 +14,13 @@ from .parameters import BY_NAME
 class LineConfig:
     shots_per_lot: int = 220
     shots_per_shift: int = 700
-    die_warmup_gain: float = 0.11
-    die_cool_per_second: float = 0.9
+    shots_per_die: int = 110
+    die_warmup_gain: float = 0.020
+    die_cool_gain: float = 0.00419
+    ambient_temp_c: float = 40.0
     wear_thermal_gain: float = 0.02
     sensor_drift_sd: float = 0.015
-    starting_wear_shots: float = 0.0
+    die_life_shots: float = 60000.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,23 +31,40 @@ class AlloyLot:
     mn_content_pct: float
 
 
+@dataclass(frozen=True, slots=True)
+class Die:
+    """A tool is swapped in at whatever wear state its own campaign has reached."""
+
+    die_id: int
+    wear_shots: float
+
+
 @dataclass(slots=True)
 class LineState:
     shot_index: int = 0
     die_temp_c: float = k.DIE_TEMP_MIN_C
-    tool_wear_shots: float = 0.0
-    lot: AlloyLot = field(default_factory=lambda: AlloyLot(0, 10.5, 0.9, 0.28))
+    die: Die = field(default_factory=lambda: Die(0, 0.0))
+    lot: AlloyLot = field(default_factory=lambda: AlloyLot(0, 10.5, 0.78, 0.28))
     shift_id: int = 0
     sensor_bias: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def tool_wear_shots(self) -> float:
+        return self.die.wear_shots
 
 
 def initial_state(config: LineConfig, rng: np.random.Generator) -> LineState:
     return LineState(
         die_temp_c=k.DIE_TEMP_MIN_C,
-        tool_wear_shots=config.starting_wear_shots,
+        die=sample_die(0, config, rng),
         lot=sample_lot(0, rng),
         sensor_bias={name: 0.0 for name in _DRIFTING_SENSORS},
     )
+
+
+def sample_die(die_id: int, config: LineConfig, rng: np.random.Generator) -> Die:
+    """Dies rotate through the cell, so any shot may run on a fresh or a tired tool."""
+    return Die(die_id, float(rng.uniform(0.0, config.die_life_shots)))
 
 
 def sample_lot(lot_id: int, rng: np.random.Generator) -> AlloyLot:
@@ -63,12 +82,11 @@ def advance(
 ) -> LineState:
     """Step the line one shot forward under the given setpoints."""
     die_temp = _next_die_temperature(state, setpoints, config)
-    wear = _next_tool_wear(state, die_temp, config)
     shot_index = state.shot_index + 1
     return LineState(
         shot_index=shot_index,
         die_temp_c=die_temp,
-        tool_wear_shots=wear,
+        die=_next_die(state, shot_index, die_temp, config, rng),
         lot=_next_lot(state, shot_index, config, rng),
         shift_id=shot_index // config.shots_per_shift,
         sensor_bias=_next_sensor_bias(state, config, rng),
@@ -96,18 +114,32 @@ _DRIFTING_SENSORS: tuple[str, ...] = (
 def _next_die_temperature(
     state: LineState, setpoints: dict[str, float], config: LineConfig
 ) -> float:
-    """Die heats toward the melt and is pulled back by the cooling interval."""
-    pour_temp = setpoints["pour_temp_c"]
-    cooling_time = setpoints["cooling_time_s"]
-    heating = config.die_warmup_gain * (pour_temp - state.die_temp_c)
-    cooling = config.die_cool_per_second * cooling_time
+    """Newton cooling against ambient, so the die settles instead of running away."""
+    heating = config.die_warmup_gain * (setpoints["pour_temp_c"] - state.die_temp_c)
+    cooling = (
+        config.die_cool_gain
+        * setpoints["cooling_time_s"]
+        * (state.die_temp_c - config.ambient_temp_c)
+    )
     return float(np.clip(state.die_temp_c + heating - cooling, 60.0, 400.0))
+
+
+def _next_die(
+    state: LineState,
+    shot_index: int,
+    die_temp_c: float,
+    config: LineConfig,
+    rng: np.random.Generator,
+) -> Die:
+    if shot_index % config.shots_per_die == 0:
+        return sample_die(state.die.die_id + 1, config, rng)
+    return Die(state.die.die_id, _next_tool_wear(state, die_temp_c, config))
 
 
 def _next_tool_wear(state: LineState, die_temp_c: float, config: LineConfig) -> float:
     """Wear accrues per shot plus an integral of thermal exposure above the window."""
     thermal_excess = max(die_temp_c - k.DIE_TEMP_MAX_C, 0.0)
-    return state.tool_wear_shots + 1.0 + config.wear_thermal_gain * thermal_excess
+    return state.die.wear_shots + 1.0 + config.wear_thermal_gain * thermal_excess
 
 
 def _next_lot(
@@ -137,5 +169,5 @@ def _apply_sensor_bias(reading: dict[str, float], bias: dict[str, float]) -> dic
     return out
 
 
-def with_starting_wear(config: LineConfig, shots: float) -> LineConfig:
-    return replace(config, starting_wear_shots=shots)
+def with_die_life(config: LineConfig, shots: float) -> LineConfig:
+    return replace(config, die_life_shots=shots)

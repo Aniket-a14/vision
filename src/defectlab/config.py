@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     seed: int = 42
     noise_sd: float = 1.0
-    signal_gain: float = 2.8
+    signal_gain: float = 3.0
     pca_components: int = 30
     target_defect_rate: float = 0.03
     paths: Paths = Field(default_factory=Paths)

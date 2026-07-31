@@ -62,9 +62,23 @@ def test_die_temperature_accumulates_rather_than_resetting():
     assert not np.isclose(early, later, atol=1e-6)
 
 
-def test_tool_wear_is_monotonic():
-    frame = run_line(300, TwinConfig(seed=4))
-    assert frame["tool_wear_shots"].is_monotonic_increasing
+def test_tool_wear_is_monotonic_within_a_die():
+    """Wear accumulates per tool; a die change resets it to that tool's own campaign."""
+    frame = run_line(600, TwinConfig(seed=4))
+    for _, block in frame.groupby("die_id"):
+        assert block["tool_wear_shots"].is_monotonic_increasing
+
+
+def test_dies_rotate_through_the_cell():
+    frame = run_line(600, TwinConfig(seed=4))
+    assert frame["die_id"].nunique() > 1
+
+
+def test_die_changes_spread_wear_across_die_life():
+    """Without rotation the dataset would only ever see a fresh tool."""
+    frame = run_line(2000, TwinConfig(seed=4))
+    assert frame["tool_wear_shots"].max() > 40_000
+    assert frame["tool_wear_shots"].std() > 10_000
 
 
 def test_chemistry_is_constant_within_a_lot():

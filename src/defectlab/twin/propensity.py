@@ -17,20 +17,20 @@ from . import physics
 # Weights follow published HPDC ANOVA: plunger velocities dominate porosity.
 MECHANISM_WEIGHTS: Final[dict[str, float]] = {
     "air_entrapment": 1.15,
-    "gas_porosity": 0.90,
-    "shrinkage": 1.25,
-    "cold_shut": 1.10,
-    "misrun": 0.50,
+    "gas_porosity": 1.05,
+    "shrinkage": 1.60,
+    "cold_shut": 0.80,
+    "misrun": 0.30,
     "beta_platelets": 0.30,
     "soldering": 0.32,
     "sludge": 0.18,
-    "flash": 0.35,
-    "tool_wear": 0.45,
+    "flash": 0.45,
+    "tool_wear": 1.10,
 }
 
 # Tuned together so process-only AUC lands at ~0.85 with no feature correlating past 0.35.
 DEFAULT_NOISE_SD: Final = 1.0
-DEFAULT_SIGNAL_GAIN: Final = 2.8
+DEFAULT_SIGNAL_GAIN: Final = 3.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +40,11 @@ class PropensityResult:
     mechanisms: pd.DataFrame
 
     def dominant_mechanism(self) -> pd.Series:
-        return self.mechanisms.idxmax(axis=1)
+        """Which mechanism is unusually high for this shot, not which has the largest offset."""
+        return self.excess().idxmax(axis=1)
+
+    def excess(self) -> pd.DataFrame:
+        return self.mechanisms - self.mechanisms.median(axis=0)
 
 
 def mechanism_indices(frame: pd.DataFrame) -> pd.DataFrame:

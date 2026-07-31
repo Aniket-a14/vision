@@ -16,6 +16,7 @@ def limits(name: str) -> dict[str, float]:
 class ShotSchema(pa.DataFrameModel):
     shot_index: Series[int] = pa.Field(ge=0)
     lot_id: Series[int] = pa.Field(ge=0)
+    die_id: Series[int] = pa.Field(ge=0)
     shift_id: Series[int] = pa.Field(ge=0)
 
     pour_temp_c: Series[float] = pa.Field(in_range=limits("pour_temp_c"))

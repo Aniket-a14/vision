@@ -26,6 +26,7 @@ class Shot:
     index: int
     reading: dict[str, float]
     lot_id: int
+    die_id: int
     shift_id: int
 
 
@@ -88,12 +89,17 @@ def _iter_shots(n_shots: int, config: TwinConfig, rng: np.random.Generator) -> I
 def _step(state: LineState, config: TwinConfig, rng: np.random.Generator) -> tuple[LineState, Shot]:
     setpoints = draw_setpoints(rng)
     reading = dynamics.observed(state, setpoints)
-    shot = Shot(state.shot_index, reading, state.lot.lot_id, state.shift_id)
+    shot = Shot(state.shot_index, reading, state.lot.lot_id, state.die.die_id, state.shift_id)
     return dynamics.advance(state, setpoints, config.line, rng), shot
 
 
 def _context(shot: Shot) -> dict[str, float | int]:
-    return {"shot_index": shot.index, "lot_id": shot.lot_id, "shift_id": shot.shift_id}
+    return {
+        "shot_index": shot.index,
+        "lot_id": shot.lot_id,
+        "die_id": shot.die_id,
+        "shift_id": shot.shift_id,
+    }
 
 
 _SETPOINT_NAMES: tuple[str, ...] = (
