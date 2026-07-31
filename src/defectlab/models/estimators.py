@@ -26,6 +26,23 @@ def xgboost_classifier(seed: int = 42) -> Any:
     )
 
 
+def xgboost_fast(seed: int = 42) -> Any:
+    """Small budget for tests and sweeps where trend matters more than the last point of AUC."""
+    import xgboost as xgb
+
+    return xgb.XGBClassifier(
+        n_estimators=120,
+        max_depth=4,
+        learning_rate=0.15,
+        subsample=0.9,
+        colsample_bytree=0.9,
+        reg_lambda=1.5,
+        n_jobs=8,
+        random_state=seed,
+        eval_metric="logloss",
+    )
+
+
 def explainable_boosting_classifier(seed: int = 42) -> Any:
     """Glass-box GA2M; its shape functions are the explanation, with no post-hoc step."""
     from interpret.glassbox import ExplainableBoostingClassifier
@@ -43,6 +60,7 @@ def logistic_baseline(seed: int = 42) -> Any:
 
 BUILDERS: dict[str, Callable[[int], Any]] = {
     "xgboost": xgboost_classifier,
+    "xgboost_fast": xgboost_fast,
     "ebm": explainable_boosting_classifier,
     "logistic": logistic_baseline,
 }

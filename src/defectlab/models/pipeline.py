@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
@@ -15,6 +15,30 @@ from .features import Modality
 from .thresholds import CostMatrix, choose
 
 CALIBRATION_FRACTION = 0.25
+
+# ISA-18.2 caps an operator at 6-12 alarms/hour, but that budget only makes sense once
+# probabilities are prior-corrected to a realistic 2-4% base rate. The research datasets
+# run at ~57% prevalence, where any alarm budget starves recall, so it stays off here and
+# is applied in the economics layer instead.
+DEFAULT_MAX_ALERT_RATE: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CellData:
+    train_features: np.ndarray
+    train_labels: np.ndarray
+    test_features: np.ndarray
+    test_labels: np.ndarray
+
+
+@dataclass(frozen=True, slots=True)
+class FitConfig:
+    estimator: str = "xgboost"
+    seed: int = 42
+    alpha: float = 0.1
+    calibration_folds: int = 3
+    max_alert_rate: float | None = DEFAULT_MAX_ALERT_RATE
+    costs: CostMatrix = field(default_factory=CostMatrix)
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,56 +73,49 @@ class AblationResult:
             "abstention_rate": self.abstention_rate,
             "coverage_defect": self.conformal_coverage[1],
             "coverage_ok": self.conformal_coverage[0],
-            **self.scores.as_dict(),
+            **asdict(self.scores),
         }
 
 
-def fit(
-    train_features: np.ndarray,
-    train_labels: np.ndarray,
-    estimator: str = "xgboost",
-    seed: int = 42,
-    alpha: float = 0.1,
-    costs: CostMatrix | None = None,
-) -> FittedModel:
+def fit(features: np.ndarray, labels: np.ndarray, config: FitConfig | None = None) -> FittedModel:
     """Fit, then calibrate and conformalise on a held-out slice of the training set."""
-    fit_index, calibration_index = _split_calibration(len(train_labels), seed)
-    model = _fit_calibrated(train_features[fit_index], train_labels[fit_index], estimator, seed)
-    calibration_scores = positive_class_scores(model, train_features[calibration_index])
-    calibration_labels = train_labels[calibration_index]
-    conformal = MondrianConformal(alpha=alpha).fit(calibration_labels, calibration_scores)
-    threshold = choose(calibration_labels, calibration_scores, costs or CostMatrix())
+    settings = config or FitConfig()
+    fit_index, calibration_index = _split_calibration(len(labels), settings.seed)
+    model = _fit_calibrated(features[fit_index], labels[fit_index], settings)
+    calibration_scores = positive_class_scores(model, features[calibration_index])
+    calibration_labels = labels[calibration_index]
+    conformal = MondrianConformal(alpha=settings.alpha).fit(calibration_labels, calibration_scores)
+    threshold = choose(
+        calibration_labels,
+        calibration_scores,
+        settings.costs,
+        max_alert_rate=settings.max_alert_rate,
+    )
     return FittedModel(model, conformal, threshold)
 
 
 def run_cell(
-    modality: Modality,
-    regime: Regime,
-    train_features: np.ndarray,
-    train_labels: np.ndarray,
-    test_features: np.ndarray,
-    test_labels: np.ndarray,
-    estimator: str = "xgboost",
-    seed: int = 42,
+    modality: Modality, regime: Regime, data: CellData, config: FitConfig | None = None
 ) -> AblationResult:
-    model = fit(train_features, train_labels, estimator, seed)
-    test_scores = model.score(test_features)
+    settings = config or FitConfig()
+    model = fit(data.train_features, data.train_labels, settings)
+    test_scores = model.score(data.test_features)
     sets = model.conformal.predict_sets(test_scores)
     return AblationResult(
         modality=modality,
         regime=regime,
-        estimator=estimator,
-        scores=evaluate(test_labels, test_scores, model.threshold),
+        estimator=settings.estimator,
+        scores=evaluate(data.test_labels, test_scores, model.threshold),
         threshold=model.threshold,
         abstention_rate=sets.abstention_rate(),
-        conformal_coverage=coverage_by_class(test_labels, sets),
+        conformal_coverage=coverage_by_class(data.test_labels, sets),
     )
 
 
-def _fit_calibrated(features: np.ndarray, labels: np.ndarray, estimator: str, seed: int):
+def _fit_calibrated(features: np.ndarray, labels: np.ndarray, settings: FitConfig):
     """Isotonic calibration first; cost-optimal thresholds need honest probabilities."""
-    base = build(estimator, seed)
-    calibrated = CalibratedClassifierCV(base, method="isotonic", cv=3)
+    base = build(settings.estimator, settings.seed)
+    calibrated = CalibratedClassifierCV(base, method="isotonic", cv=settings.calibration_folds)
     calibrated.fit(features, labels)
     return calibrated
 
