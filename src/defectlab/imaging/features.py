@@ -35,9 +35,8 @@ def extract_split(
     """Forward every image once and stack the embeddings."""
     configure_threads()
     model, spec = build(backbone)
-    transform = build_transform(spec)
+    transform = build_transform(model, spec)
     rng = np.random.default_rng(seed)
-    del spec
     batches = _iter_batches(paths, batch_size)
     embeddings = [_embed(model, transform, batch, regime, rng, camera) for batch in batches]
     return np.vstack(embeddings).astype(np.float32)

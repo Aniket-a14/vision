@@ -16,7 +16,22 @@ Every week has a **gate**. If a gate fails, you do not proceed — you drop to t
 | 0.4 | `git init`, push to GitHub, GitHub Actions running `ruff` + `pytest` on an empty suite | green badge |
 | 0.5 | Time DINOv2 ViT-S/14 extraction on **200 images**, extrapolate to 7,348 | you have a real number |
 
-**0.5 is the decision point for the whole project.** If extrapolated extraction exceeds ~45 min/regime × 4 regimes, fall back to ResNet-18 and note it. Do not discover this in Week 2.
+**0.5 is the decision point for the whole project.** Do not discover this in Week 2.
+
+### Measured on this machine (4C/8T i7-1195G7), 2026-08-01
+
+| Backbone | Dim | Per regime (7,348 images) | Four regimes |
+|---|---|---|---|
+| `resnet18` | 512 | **28 min** | ~1.9 h |
+| `dinov2_s` (ViT-S/14 @224) | 384 | **52 min** | ~3.5 h |
+
+**Consequences, decided:**
+- The four headline caches use **`dinov2_s`** — a one-off 3.5 h, run overnight.
+- The **degradation sweep uses `resnet18` on a fixed 1,500-image subsample.** A sweep over
+  6 severities × 2 splits is 12 extractions; at full size that is 5.6 h with ResNet and
+  10 h with DINOv2, which does not fit. Subsampling is stated in the report.
+- Regenerating a cache is never on the critical path — the cache is keyed by
+  `(split, backbone, regime)` and reused by every downstream experiment.
 
 ---
 
