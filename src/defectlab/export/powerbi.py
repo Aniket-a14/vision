@@ -14,12 +14,15 @@ JSON blind is how you produce a file that will not open.
 from __future__ import annotations
 
 import json
+import uuid
 from pathlib import Path
 
 from .schema import DIM_DATE, FACT_ATTRIBUTION, FACT_PRODUCTION, FACT_SHOT, FACT_SPC, TABLES
 
 PROJECT = "DefectLab"
 COMPATIBILITY_LEVEL = 1567
+# Fixed so `logical_id` is reproducible; any constant UUID would do.
+LOGICAL_ID_NAMESPACE = uuid.UUID("6f8a1d2c-3b4e-5a6f-8c9d-0e1f2a3b4c5d")
 PAGES = ("Line overview", "Why this part", "Cost of quality", "Process control")
 
 INTEGER_COLUMNS = frozenset(
@@ -245,29 +248,45 @@ def _database() -> str:
     return f"database\n\tcompatibilityLevel: {COMPATIBILITY_LEVEL}\n"
 
 
+def _schema_url(item: str) -> str:
+    return f"https://developer.microsoft.com/json-schemas/fabric/item/{item}/definitionProperties/1.0.0/schema.json"
+
+
 def _pbism() -> str:
-    return json.dumps({"version": "1.0", "settings": {}}, indent=2) + "\n"
+    payload = {"$schema": _schema_url("semanticModel"), "version": "1.0", "settings": {}}
+    return json.dumps(payload, indent=2) + "\n"
 
 
 def _pbir() -> str:
     payload = {
+        "$schema": _schema_url("report"),
         "version": "1.0",
         "datasetReference": {"byPath": {"path": f"../{PROJECT}.SemanticModel"}},
     }
     return json.dumps(payload, indent=2) + "\n"
 
 
+def logical_id(kind: str) -> str:
+    """A GUID, because Desktop parses this field as one and refuses the project otherwise.
+
+    Derived by uuid5 rather than uuid4 so regenerating the project keeps the same identity --
+    Fabric treats a changed logicalId as a different artifact.
+    """
+    return str(uuid.uuid5(LOGICAL_ID_NAMESPACE, f"{PROJECT}/{kind}"))
+
+
 def _platform(kind: str) -> str:
     payload = {
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
         "metadata": {"type": kind, "displayName": PROJECT},
-        "config": {"version": "2.0", "logicalId": f"{PROJECT.lower()}-{kind.lower()}"},
+        "config": {"version": "2.0", "logicalId": logical_id(kind)},
     }
     return json.dumps(payload, indent=2) + "\n"
 
 
 def _pbip() -> str:
     payload = {
+        "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/pbip/definitionProperties/1.0.0/schema.json",
         "version": "1.0",
         "artifacts": [{"report": {"path": f"{PROJECT}.Report"}}],
         "settings": {"enableAutoRecovery": True},

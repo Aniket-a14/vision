@@ -1,17 +1,33 @@
 """The generated Power BI project must stay in step with the export contract."""
 
 import json
+import uuid
 
 import pytest
 
 from defectlab.export import TABLES, spec, write_project
-from defectlab.export.powerbi import MEASURES, PAGES, PROJECT, RELATIONSHIPS
+from defectlab.export.powerbi import MEASURES, PAGES, PROJECT, RELATIONSHIPS, logical_id
 
 
 @pytest.fixture(scope="module")
 def project(tmp_path_factory):
     root = tmp_path_factory.mktemp("pbip")
     return root, write_project(root, root / "exports")
+
+
+@pytest.mark.parametrize("kind", ["Report", "SemanticModel"])
+def test_the_logical_id_is_a_guid(project, kind):
+    """Desktop parses `config.logicalId` as a System.Guid and refuses to open the project if it
+    is anything else. A readable slug there cost one failed open with a 400-line stack trace."""
+    root, _ = project
+    platform = json.loads((root / f"{PROJECT}.{kind}" / ".platform").read_text())
+    assert uuid.UUID(platform["config"]["logicalId"])
+
+
+def test_the_logical_id_is_stable_across_regeneration():
+    """Fabric treats a changed logicalId as a different artifact, so uuid4 would be wrong."""
+    assert logical_id("Report") == logical_id("Report")
+    assert logical_id("Report") != logical_id("SemanticModel")
 
 
 def test_every_contracted_table_becomes_a_tmdl_file(project):
