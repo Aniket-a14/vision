@@ -113,6 +113,7 @@ name = "Layered architecture"
 type = "layers"
 layers = [
     "(defectlab.cli)",
+    "(defectlab.export)",
     "(defectlab.report)",
     "(defectlab.api)",
     "(defectlab.prescribe)",

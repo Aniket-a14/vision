@@ -328,6 +328,63 @@ def _print_stability(advice, reading: dict, args: argparse.Namespace) -> None:
     print(table.round(4).to_string(index=False))
 
 
+def export(args: argparse.Namespace) -> int:
+    """Write the dashboard star schema: one coherent run, scored, attributed and charted."""
+    from ..economics import CostModel, cost_curve, optimal_threshold, prevalence, shift
+    from ..export import ExportInputs, risk_chart, write
+    from ..models.pipeline import FitConfig, fit
+
+    dataset, blocks = _explain_blocks(args)
+    model = fit(
+        blocks.train, dataset.train["label"].to_numpy(), FitConfig(estimator=args.estimator)
+    )
+    source = prevalence(dataset.train["label"].to_numpy())
+    risk = shift(model.score(blocks.test), source, args.prevalence)
+    costs = CostModel()
+    threshold = optimal_threshold(dataset.test["label"].to_numpy(), risk, args.prevalence, costs)
+    line, line_risk = _production_run(dataset, args)
+    inputs = ExportInputs(
+        shots=dataset.test,
+        risk=risk,
+        threshold=threshold,
+        cost_curve=cost_curve(dataset.test["label"].to_numpy(), risk, args.prevalence, costs),
+        attribution=_attribution_frame(model, blocks),
+        spc=risk_chart(line_risk),
+        production=line,
+        production_risk=line_risk,
+    )
+    written = write(inputs, Path(args.out))
+    for name, path in written.items():
+        print(f"{name:<18} {path}")
+    return 0
+
+
+def _production_run(dataset, args: argparse.Namespace):
+    """A contiguous run for the monitoring page, scored on process telemetry alone.
+
+    The evaluation set is oversampled and grouped by label, so it has no usable time axis. A
+    real line also has telemetry for every shot but an image only for imaged parts, so the
+    process channel is what a continuous monitor actually reads.
+    """
+    from ..economics import prevalence, shift
+    from ..models.pipeline import FitConfig, fit
+
+    columns = list(FEATURES)
+    labels = dataset.train["label"].to_numpy()
+    model = fit(dataset.train[columns].to_numpy(), labels, FitConfig(estimator=args.estimator))
+    config = TwinConfig(seed=args.seed + 1, signal_gain=args.signal_gain)
+    line = score(run_line(args.line_shots, config), config, target_prevalence=args.prevalence)
+    risk = shift(model.score(line[columns].to_numpy()), prevalence(labels), args.prevalence)
+    return line, risk
+
+
+def _attribution_frame(model, blocks):
+    """Grouped SHAP over the exported rows; the dashboard shows why, not just what."""
+    from ..explain import explain as attribute
+
+    return attribute(model, blocks.test, blocks.names).frame()
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)

@@ -134,10 +134,19 @@ def test_rule_2_needs_nine_on_one_side():
     assert evaluate(_zones([0.5] * 9))["nine_one_side"].iloc[-1]
 
 
-def test_rule_2_flags_only_the_last_point_of_the_run():
-    """One event must produce one alarm; flagging the whole run is why dashboards get muted."""
-    flags = evaluate(_zones([0.5] * 9))["nine_one_side"]
+def test_a_sustained_shift_raises_exactly_one_alarm():
+    """One event, one alarm. A 30-point shift satisfies "nine in a row" at 22 positions; a chart
+    that reports all 22 is how an operator learns to ignore it. Nine points is too short a
+    fixture to catch this -- it must be longer than the window."""
+    flags = evaluate(_zones([0.5] * 30))["nine_one_side"]
     assert flags.sum() == 1
+    assert flags.to_numpy()[8]
+
+
+def test_a_second_shift_after_recovery_alarms_again():
+    """Edge-triggering must not swallow a genuine new event."""
+    zones = _zones([0.5] * 12 + [-0.5] + [0.5] * 12)
+    assert evaluate(zones)["nine_one_side"].sum() == 2
 
 
 def test_rule_3_catches_six_rising_points():

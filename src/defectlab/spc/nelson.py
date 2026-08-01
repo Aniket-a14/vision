@@ -1,8 +1,12 @@
 """The eight Nelson rules, evaluated on sigma zones.
 
-Every rule flags the *last* point of the run that triggered it, which is the point an operator
-is standing in front of when the alarm sounds. Flagging the whole run would multiply one event
-into nine alarms and is the usual reason SPC dashboards get muted.
+The run-based rules (2, 3, 4, 7, 8) are edge-triggered: they fire on the point where the run
+first completes and stay quiet while it continues. A sustained shift is one event, and
+reporting it once per extending point is how an operator learns to ignore the chart.
+
+Rule 1 is not edge-triggered -- each point outside the limits is its own excursion -- and rules
+5 and 6 additionally require the flagged point itself to be the one beyond the zone, so the
+alarm never lags the event that caused it.
 
 Rules 2-8 are pattern detectors, not outlier tests. Their false-alarm rates compound: running
 all eight at once takes the in-control alarm rate well above rule 1's 0.27%. That is a
@@ -100,8 +104,13 @@ def _eight_avoiding(zones: np.ndarray) -> np.ndarray:
 
 
 def _run(mask: np.ndarray, length: int) -> np.ndarray:
-    """Flag position i when mask held for the `length` points ending there."""
-    return _rolling_sum(mask, length) == length
+    """Fire once, when the run first completes -- not on every point that extends it.
+
+    A 30-point shift satisfies "nine in a row" at 22 separate positions. Reporting all 22 is one
+    event rendered as 22 alarms, which is how an operator learns to ignore the chart.
+    """
+    complete = _rolling_sum(mask, length) == length
+    return complete & ~np.concatenate([[False], complete[:-1]])
 
 
 def _k_of_n(mask: np.ndarray, k: int, window: int) -> np.ndarray:
