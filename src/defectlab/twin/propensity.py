@@ -82,9 +82,11 @@ def mechanism_indices(frame: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def weighted_contributions(indices: pd.DataFrame) -> pd.DataFrame:
-    weights = pd.Series(MECHANISM_WEIGHTS)
-    return indices.mul(weights, axis=1)
+def weighted_contributions(
+    indices: pd.DataFrame, weights: dict[str, float] | None = None
+) -> pd.DataFrame:
+    """Weights are overridable so `prescribe` can ask what advice survives them being wrong."""
+    return indices.mul(pd.Series(weights or MECHANISM_WEIGHTS), axis=1)
 
 
 def evaluate(
@@ -93,9 +95,10 @@ def evaluate(
     noise_sd: float = DEFAULT_NOISE_SD,
     intercept: float = 0.0,
     signal_gain: float = DEFAULT_SIGNAL_GAIN,
+    weights: dict[str, float] | None = None,
 ) -> PropensityResult:
     """Deterministic physics plus irreducible process noise."""
-    contributions = weighted_contributions(mechanism_indices(frame)) * signal_gain
+    contributions = weighted_contributions(mechanism_indices(frame), weights) * signal_gain
     signal = contributions.sum(axis=1).to_numpy()
     noise = rng.normal(0.0, noise_sd, len(frame))
     logit = signal + noise + intercept

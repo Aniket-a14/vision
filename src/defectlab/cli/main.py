@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_figures(subparsers)
     _add_explain(subparsers)
     _add_economics(subparsers)
+    _add_prescribe(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -137,6 +138,16 @@ def _add_economics(subparsers) -> None:
     parser.add_argument("--shots", type=int, default=1000, help="parts per costed batch")
     _add_twin_arguments(parser)
     parser.set_defaults(handler=commands.economics)
+
+
+def _add_prescribe(subparsers) -> None:
+    parser = subparsers.add_parser("prescribe", help="recommend setpoint changes for a risky shot")
+    parser.add_argument("--shots", type=int, default=600, help="line shots to search for the worst")
+    parser.add_argument("--design", type=int, default=20000, help="interventional shots to fit on")
+    parser.add_argument("--max-actions", type=int, default=3)
+    parser.add_argument("--trials", type=int, default=200, help="perturbation trials per scale")
+    _add_twin_arguments(parser)
+    parser.set_defaults(handler=commands.prescribe)
 
 
 def _add_gates(subparsers) -> None:

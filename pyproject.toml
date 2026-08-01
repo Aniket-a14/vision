@@ -91,6 +91,8 @@ max-args = 8
 "src/defectlab/cli/commands.py" = ["PLC0415"]
 "src/defectlab/models/estimators.py" = ["PLC0415"]
 "src/defectlab/explain/attribution.py" = ["PLC0415"]
+"src/defectlab/prescribe/surrogate.py" = ["PLC0415"]
+"src/defectlab/prescribe/search.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -32,7 +32,7 @@ class Shot:
 
 def draw_setpoints(rng: np.random.Generator) -> dict[str, float]:
     """Operator-chosen targets for one shot; state variables are excluded."""
-    return {name: parameters.sample_scalar(name, rng) for name in _SETPOINT_NAMES}
+    return {name: parameters.sample_scalar(name, rng) for name in SETPOINTS}
 
 
 def run_line(n_shots: int, config: TwinConfig) -> pd.DataFrame:
@@ -102,7 +102,9 @@ def _context(shot: Shot) -> dict[str, float | int]:
     }
 
 
-_SETPOINT_NAMES: tuple[str, ...] = (
+# What the operator writes into the machine. `die_temp_c` is controllable on paper but is a
+# thermal state here, driven by the dynamics rather than dialled in, so it is not a setpoint.
+SETPOINTS: tuple[str, ...] = (
     "pour_temp_c",
     "intensification_pressure_mpa",
     "slow_shot_velocity_ms",

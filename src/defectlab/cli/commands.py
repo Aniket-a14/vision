@@ -300,6 +300,34 @@ def _write_economics(labels, scores, point, costs, args: argparse.Namespace) -> 
     return 0
 
 
+def prescribe(args: argparse.Namespace) -> int:
+    """Recommend setpoint changes for the riskiest shot in a run, then stress-test the advice."""
+    from ..prescribe import fit as fit_surrogate
+    from ..prescribe import recommend
+
+    config = TwinConfig(seed=args.seed, signal_gain=args.signal_gain)
+    LOG.info("fitting surrogate on %d interventional shots", args.design)
+    surrogate = fit_surrogate(shots=args.design, seed=args.seed, config=config)
+    frame = run_line(args.shots, config)
+    reading = frame.iloc[int(surrogate.risk(frame).argmax())].to_dict()
+    advice = recommend(surrogate, reading, max_actions=args.max_actions)
+    print(f"riskiest of {args.shots} shots:\n")
+    print(advice.describe())
+    _print_stability(advice, reading, args)
+    return 0
+
+
+def _print_stability(advice, reading: dict, args: argparse.Namespace) -> None:
+    """Advice scored against the twin that produced it is circular; perturb the weights instead."""
+    from ..prescribe import scale_sweep
+
+    if not advice.actions:
+        return
+    table = scale_sweep(advice, reading, trials=args.trials)
+    print("\nstability under perturbed mechanism weights:")
+    print(table.round(4).to_string(index=False))
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)
