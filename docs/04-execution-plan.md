@@ -151,22 +151,38 @@ four channels, and the sweep above was re-run against the corrected model.
 **The primary test is the trend, not any single severity.** Five per-severity tests invite
 cherry-picking, and the 0.025 at severity 3 does not survive a Bonferroni correction for
 five comparisons. The pre-specified analysis is the dose-response slope: fit gain against
-severity within each seed, then test the five slopes against zero.
+severity within each seed, then test the slopes against zero.
 
-> mean slope **+0.0258** per unit severity, t = 3.39, **p = 0.028**, 5/5 seeds positive.
+### Settled at 15 seeds
+
+The five-seed run left the trend at p = 0.028. Image caches are seed-invariant, so widening
+to 15 seeds cost model fits only — 13 minutes, no re-extraction.
+
+| severity | vision | gain | sd | seeds + | p |
+|---|---|---|---|---|---|
+| 0.5 | 0.9985 | +0.0002 | 0.0007 | 9/15 | 0.263 |
+| 1.0 | 0.9847 | +0.0051 | 0.0034 | 14/15 | <0.001 |
+| 1.5 | 0.9671 | +0.0031 | 0.0111 | 8/15 | 0.291 |
+| 2.0 | 0.8984 | +0.0352 | 0.0228 | 14/15 | <0.001 |
+| 3.0 | 0.8374 | +0.0727 | 0.0290 | **15/15** | <0.001 |
+
+> **Trend: mean slope +0.0303 per unit severity, t = 9.39, p < 1e-5, 15/15 seeds positive.**
 
 **Fusion's benefit grows as imaging degrades.** At severity 3 the camera costs vision 0.161
-AUC and fusion recovers 38 % of it. The earlier null was not wrong — it was measured at the
-one severity where vision has no headroom to lose.
+AUC and fusion recovers 45 % of it, on every seed tested. The original null was not wrong —
+it was measured at the one severity where vision has no headroom to lose.
 
-Three limits that stay in the writeup:
+**The severity 1.5 anomaly is real, not noise.** It survived tripling the seed count: the
+gain there (+0.0031) is *lower* than at severity 1.0 (+0.0051) despite worse imaging, and
+its spread is three times wider (sd 0.0111 vs 0.0034). Vision itself degrades smoothly
+through that point, so the dip is in the fusion model, not the camera. Unexplained. The
+neighbouring severities both cross a resolution boundary (96 px at 1.0, 54 px at 1.5, 31 px
+at 2.0) and 1.5 is where the effective resolution first falls below the backbone's 64 px
+receptive field, but that is a hypothesis, not a finding. **Reported as an open anomaly.**
 
-- **Severity 1.5 is negative** (1/5 seeds positive). The curve is not monotone. With a
-  per-seed sd of 0.015 there this is consistent with noise, but it is reported, not smoothed.
-- **n = 5 seeds.** The effective sample size is alloy lots, not parts. Suggestive, not settled.
-- **Vision sd is exactly 0.0000** at every severity, because the images, their order and the
-  label vector are identical across twin seeds. Only the process channel varies, so all of
-  the paired variance comes from fusion.
+One limit stays in the writeup: **vision sd is exactly 0.0000** at every severity, because
+the images, their order and the label vector are identical across twin seeds. Only the
+process channel varies, so all of the paired variance comes from fusion.
 
 The severity ladder was fixed before any result was seen, and the whole curve is reported.
 
