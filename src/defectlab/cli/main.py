@@ -17,6 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_verify(subparsers)
     _add_simulate(subparsers)
     _add_extract(subparsers)
+    _add_ablate(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -65,6 +66,17 @@ def _add_extract(subparsers) -> None:
     parser.add_argument("--seed", type=int, default=settings.seed)
     parser.add_argument("--quiet", action="store_true", help="suppress per-batch progress")
     parser.set_defaults(handler=commands.extract)
+
+
+def _add_ablate(subparsers) -> None:
+    parser = subparsers.add_parser("ablate", help="run the 3x2 modality-by-regime ablation")
+    parser.add_argument("--processed", default=str(commands.default_processed()))
+    parser.add_argument("--out", default="results")
+    parser.add_argument("--backbone", default="resnet18")
+    parser.add_argument("--estimator", default="xgboost")
+    parser.add_argument("--components", type=int, default=settings.pca_components)
+    parser.add_argument("--seed", type=int, default=settings.seed)
+    parser.set_defaults(handler=commands.ablate)
 
 
 def _add_gates(subparsers) -> None:

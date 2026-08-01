@@ -87,6 +87,8 @@ max-args = 8
 # Heavy optional dependencies are imported lazily inside their factory functions.
 "src/defectlab/imaging/backbones.py" = ["PLC0415"]
 "src/defectlab/imaging/features.py" = ["PLC0415"]
+# Keeps the sklearn and xgboost import cost off the fast commands.
+"src/defectlab/cli/commands.py" = ["PLC0415"]
 "src/defectlab/models/estimators.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]

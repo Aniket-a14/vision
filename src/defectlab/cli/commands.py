@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from ..config import settings
@@ -54,6 +55,25 @@ def extract(args: argparse.Namespace) -> int:
     return 0
 
 
+def ablate(args: argparse.Namespace) -> int:
+    """Run the 3x2 modality-by-regime ablation on cached embeddings."""
+    from ..models.ablation import AblationInputs, run
+    from ..models.pipeline import FitConfig
+
+    processed = Path(args.processed)
+    frames = {split: _paired(processed, split) for split in build_data.SPLITS}
+    inputs = AblationInputs(
+        train_frame=frames["train"],
+        test_frame=frames["test"],
+        regimes=[_regime_data(processed, args.backbone, regime) for regime in Regime],
+        n_components=args.components,
+        fit_config=FitConfig(estimator=args.estimator, seed=args.seed),
+    )
+    results = run(inputs)
+    print(results.round(4).to_string(index=False))
+    return _write_results(results, Path(args.out), args.backbone)
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)
@@ -67,6 +87,29 @@ def gates(args: argparse.Namespace) -> int:
 
 def _regimes(name: str) -> tuple[Regime, ...]:
     return tuple(Regime) if name == "both" else (Regime(name),)
+
+
+def _paired(processed: Path, split: str) -> pd.DataFrame:
+    return pd.read_parquet(processed / f"{split}_paired.parquet")
+
+
+def _regime_data(processed: Path, backbone: str, regime: Regime):
+    """Embeddings must already be cached; extraction is a separate, explicit step."""
+    from ..models.ablation import RegimeData
+
+    paths = {split: cache_path(processed, backbone, split, regime) for split in build_data.SPLITS}
+    missing = [str(path) for path in paths.values() if not path.exists()]
+    if missing:
+        raise FileNotFoundError(f"run `defectlab extract` first; missing: {', '.join(missing)}")
+    return RegimeData(regime, np.load(paths["train"]), np.load(paths["test"]))
+
+
+def _write_results(results: pd.DataFrame, out: Path, backbone: str) -> int:
+    out.mkdir(parents=True, exist_ok=True)
+    destination = out / f"ablation_{backbone}.csv"
+    results.to_csv(destination, index=False)
+    print(f"\nwrote {destination}")
+    return 0
 
 
 def default_root() -> Path:
