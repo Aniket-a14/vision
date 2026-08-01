@@ -6,6 +6,7 @@ is silent when it goes wrong -- a leftover `build:` section only fails once you 
 """
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -97,6 +98,22 @@ def test_either_path_convention_is_stripped(source):
     is not the one the interpreter is using. `Path` split only one of them and CI caught it."""
     volume = {"type": "bind", "source": source, "target": "/mosquitto/config/mosquitto.conf"}
     assert bundle._offline_volume(volume)["source"] == "./mosquitto.conf"
+
+
+def test_an_image_that_was_never_built_is_pulled(monkeypatch):
+    """The broker is pulled, not built, so `docker compose build` leaves it absent on a clean
+    machine and `docker save` fails. CI found this the first time the job ever ran."""
+    calls = []
+
+    def fake(command, **kwargs):
+        calls.append(command)
+        absent = command[:3] == ["docker", "image", "inspect"] and "mosquitto" in command[3]
+        return subprocess.CompletedProcess(command, 1 if absent else 0, "", "")
+
+    monkeypatch.setattr(bundle.subprocess, "run", fake)
+    bundle.ensure_local(("defectlab/api:local", "eclipse-mosquitto:2.0"))
+    assert ["docker", "pull", "eclipse-mosquitto:2.0"] in calls
+    assert ["docker", "pull", "defectlab/api:local"] not in calls
 
 
 def test_named_volumes_are_declared(offline):

@@ -108,8 +108,21 @@ def digest_of(path: Path) -> str:
     return sha.hexdigest()
 
 
+def ensure_local(images: tuple[str, ...]) -> None:
+    """`docker compose build` only builds services that declare `build:`, so on a clean machine
+    the broker image is absent and `docker save` fails on it with "reference does not exist"."""
+    for name in images:
+        found = subprocess.run(
+            ["docker", "image", "inspect", name], capture_output=True, text=True, check=False
+        )
+        if found.returncode:
+            print(f"pulling {name}", file=sys.stderr)
+            run(["docker", "pull", name], capture=False)
+
+
 def save_images(images: tuple[str, ...], destination: Path) -> Path:
     tar = destination / IMAGES_TAR
+    ensure_local(images)
     print(f"saving {len(images)} images to {tar.name} (this is the slow part)", file=sys.stderr)
     run(["docker", "save", "-o", str(tar), *images], capture=False)
     return tar
