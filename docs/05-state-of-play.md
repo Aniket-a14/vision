@@ -5,7 +5,7 @@ Written 2026-08-01. Read this first when resuming; it is the only file that need
 ## Verify the build in one command
 
 ```
-./.venv/Scripts/python.exe -m pytest -q      # 166 tests
+./.venv/Scripts/python.exe -m pytest -q      # 187 tests
 ./.venv/Scripts/ruff.exe check . && ./.venv/Scripts/ruff.exe format --check .
 ./.venv/Scripts/lint-imports.exe             # 2 contracts, both KEPT
 ```
@@ -28,7 +28,7 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `explain` | done — grouped SHAP, ALE, Anchors | `defectlab explain` |
 | `economics` | done — prior shift, PAF, Taguchi, sensitivity | `defectlab economics` |
 | `spc` | done — X-bar/R, I-MR, EWMA, Nelson 1–8 | no CLI yet |
-| `prescribe` | **not started** | — |
+| `prescribe` | done — interventional surrogate, ramp-limited advice | `defectlab prescribe` |
 | `api` | **not started** | — |
 
 Not started beyond the package: React app, MQTT simulator, deploy, offline bundle, report,
@@ -68,10 +68,26 @@ Do not re-run these to check them; they are recorded in `docs/04-execution-plan.
 - Alert rate 16.5 % of shots = **9.9 alarms/hour** on a one-minute cycle, inside the ISA-18.2
   6–12/hour band *without the constraint being imposed*. That is a result, and it closes the
   question deferred at `models/pipeline.py:19`.
+- **Search and score on the margin, not on probability.** This has now bitten three times —
+  SHAP attribution, the prescribe search, and the prescribe robustness measure. A risky shot
+  sits where the sigmoid is flat, so a real improvement of 16 logits reads as a probability
+  change of zero. Any new optimiser or effect measure should default to logits.
 - **Taguchi: read `baseline_ratio`, never `mean_loss`.** With Δ₀ = 3σ a parameter drawn at its
   own spread costs A₀/9 whatever A₀ is, so ten parameters sum past the value of the part. The
   ratio divides that artefact out: `pour_temp_c` 2.64 (real drift), four params at 0.98–1.02
   (the control), `die_temp_c` 0.49 (thermal inertia), chemistry 0.43–0.67 (lot-level).
+
+## Measured prescription
+
+`defectlab prescribe --seed 7` on the riskiest of 600 shots raises both plunger velocities and
+the pour temperature back toward nominal, each capped at its ramp limit: risk 1.0000 -> 0.0174,
+margin +16.6 logits. Stability is 1.000 under ±20/35/50 % weight perturbation.
+
+**Quote that stability with its reason.** It is not vacuous — every recommendation worsens at
+least one mechanism, so a bad reweighting could in principle flip it. It is strong because the
+improvement dominates the worsening by ~100×, and ±50 % is at most a 3× swing. The claim is
+"for shots this far from nominal the advice does not depend on the weights", not "the advice is
+verified". Full write-up in `docs/04-execution-plan.md`.
 
 ## Conventions that are load-bearing
 
@@ -89,14 +105,11 @@ Do not re-run these to check them; they are recorded in `docs/04-execution-plan.
 
 ## Next, in order
 
-1. **`prescribe`** — recommender fitted on `sample_uniform_envelope` (randomised interventional
-   data, already in `twin/parameters.py`), plus a simulator-perturbation robustness test.
-   Respect `Actionability`: an operator cannot change `si_content_pct` mid-shift.
-2. **Power BI `.pbix`** — hard rubric requirement, still at zero. Needs exports from
+1. **Power BI `.pbix`** — hard rubric requirement, still at zero. Needs exports from
    `explain`, `economics` and `spc`, which all now exist. **Do this before the API if time
    gets short**; the API is impressive but not marked, and the `.pbix` is.
-3. **`api`** — FastAPI + SSE, MQTT line simulator, hash-chained audit log.
-4. React app, deploy, offline bundle, report, slides.
+2. **`api`** — FastAPI + SSE, MQTT line simulator, hash-chained audit log.
+3. React app, deploy, offline bundle, report, slides.
 
 A note on ordering, learned the hard way: breadth-first beats depth-first here. Adding seeds to
 an already-significant result optimises the thing most recently looked at, while a

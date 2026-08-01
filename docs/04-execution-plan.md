@@ -310,6 +310,47 @@ lot-level draw respectively — so this doubles as a cross-check on the dynamics
 `tool_wear_shots` is excluded: it has no nominal to sit on, and a quadratic penalty around 25,000
 shots would be meaningless.
 
+### Measured prescription — riskiest shot of 600, seed 7
+
+`defectlab prescribe --seed 7`. The surrogate is fitted on 20,000 **interventional** shots
+(`sample_uniform_envelope`), never on historian data: the line dynamics correlate pour
+temperature with die temperature and both with time-in-shift, so a model fitted on production
+data learns associations that do not survive intervention.
+
+```
+fast_shot_velocity_ms: 1.662  -> 2.062  (+0.4 m/s)
+slow_shot_velocity_ms: 0.1816 -> 0.2416 (+0.06 m/s)
+pour_temp_c:           654.2  -> 669.2  (+15 C)
+risk 1.0000 -> 0.0174 (+0.9826), margin +16.613 logits
+```
+
+Physically right, and worth checking rather than assuming: that shot filled slowly (fast shot
+1.66 m/s against a 1.60 limit and a 2.80 nominal) with cold metal (654 °C). That is the
+cold-shut and misrun path. All three moves go back toward nominal, and each is capped exactly
+at its ramp limit — the search cannot propose more than one shot of travel.
+
+**Robustness — and its limit.** Perturbing every mechanism weight multiplicatively by ±20/35/50 %
+leaves stability at **1.000 at all three scales**, median margin gain 16.07–16.10 logits, and the
+same holds at the median, p75, p90 and p99 shots. That is a strong result, but it must be
+reported with the reason it is strong, or it is worth nothing:
+
+- It is **not vacuous**. Every recommendation trades mechanisms off — the worst shot improves
+  three indices while worsening `gas_porosity` by 0.136, the p99 shot worsens `shrinkage`, the
+  median shot worsens `flash`. Had each move improved every index it touched, any positive
+  reweighting would have agreed *arithmetically* and the test would have proved nothing.
+- It is strong because the improvement **dominates the worsening by roughly two orders of
+  magnitude**, and ±50 % reweighting is at most a 3× swing in the ratio. It cannot flip that.
+- So the honest claim is: *for shots this far from nominal, the advice does not depend on the
+  mechanism weights being right*. It would be a genuinely hard test on a shot where the
+  improved and worsened mechanisms were comparable in size, and no such shot appears in this
+  run.
+- Scope: perturbing weights asks "what if shrinkage matters more than we thought", not "what if
+  the physics is wrong". The indices themselves are untouched. This is narrower than full model
+  misspecification and is not a substitute for real process data.
+
+Advice is suppressed below the 3 % line base rate. Before that gate the median shot — risk
+0.0001 — was still collecting three setpoint changes worth 4.8 logits it had no use for.
+
 ### Gate 4
 
 - [ ] Every figure in the report regenerable by one command
