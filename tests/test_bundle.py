@@ -88,6 +88,17 @@ def test_the_bind_mount_points_at_the_copy_that_travels(offline):
     assert mount["read_only"]
 
 
+@pytest.mark.parametrize(
+    "source",
+    ["C:\\repo\\deploy\\mosquitto\\mosquitto.conf", "/home/ci/repo/deploy/mosquitto.conf"],
+)
+def test_either_path_convention_is_stripped(source):
+    """The bundle is built on Windows and unpacked on Linux, so the separator in the compose file
+    is not the one the interpreter is using. `Path` split only one of them and CI caught it."""
+    volume = {"type": "bind", "source": source, "target": "/mosquitto/config/mosquitto.conf"}
+    assert bundle._offline_volume(volume)["source"] == "./mosquitto.conf"
+
+
 def test_named_volumes_are_declared(offline):
     """Compose refuses to start a service referencing a volume the file never declares."""
     assert set(offline["volumes"]) == {"api-audit", "gate-audit"}

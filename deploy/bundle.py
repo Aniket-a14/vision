@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ROOT / "docker-compose.yml"
@@ -87,9 +87,11 @@ def _offline_service(service: dict) -> dict:
 
 
 def _offline_volume(volume: dict) -> dict:
+    """PureWindowsPath because it splits on both separators: the path convention in the compose
+    file is the build machine's, which need not be the one this is parsed on."""
     if volume.get("type") != "bind":
         return {key: value for key, value in volume.items() if key != "bind"}
-    relative = Path(volume["source"]).name
+    relative = PureWindowsPath(volume["source"]).name
     return {**volume, "source": f"./{relative}", "bind": volume.get("bind", {})}
 
 
