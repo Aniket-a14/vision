@@ -23,10 +23,15 @@ Every week has a **gate**. If a gate fails, you do not proceed — you drop to t
 Train (6,633) and test (715) together are the 7,348 images, so a *regime* costs one pass
 over the whole dataset and there are only two regimes, not four.
 
-| Backbone | Dim | Per regime (7,348 images) | Both regimes |
-|---|---|---|---|
-| `resnet18` | 512 | **28 min** | ~56 min |
-| `dinov2_s` (ViT-S/14 @224) | 384 | **52 min** | ~1 h 45 min |
+| Backbone | Dim | Per regime (7,348 images) | Both regimes | Basis |
+|---|---|---|---|---|
+| `resnet18` | 512 | **6 min 41 s** | **12 min 46 s** | measured end to end |
+| `dinov2_s` (ViT-S/14 @224) | 384 | ~52 min | ~1 h 45 min | extrapolated, not yet run |
+
+The ResNet figure was an extrapolation from a 200-image slice and overstated the cost by
+4x; sustained throughput is 17–25 img/s, and the second regime is *faster* than the first
+because the images are already in the OS page cache and resolution loss shrinks the frame
+before the resize. Treat the DINOv2 row as unverified until it is measured the same way.
 
 **Consequences, decided:**
 - Headline caches use **`dinov2_s`**; `resnet18` is kept as a cheap fallback and a
@@ -54,7 +59,7 @@ over the whole dataset and there are only two regimes, not four.
 
 ### Gate 1 — all four must pass
 
-- [ ] No single feature correlates with the label above **|0.35|**
+- [ ] No single feature correlates with the label above **|0.35|**, checked as a mean across seeds — a one-seed reading of this is noise (see the Gate 2 note)
 - [ ] Pour-temp histogram split by label shows the **U-shape** (defects at *both* tails), not clean separation
 - [ ] `pytest` passes; import-linter confirms `twin/` ↛ `models/`
 - [ ] `docker compose up` brings the stack up clean from scratch
@@ -75,8 +80,53 @@ over the whole dataset and there are only two regimes, not four.
 
 ### Gate 2
 
-- [ ] **Process-only ROC-AUC in 0.80–0.88.** Above 0.88 → increase `NOISE_SD` and regenerate. Real foundries cannot predict this well from process data alone; 0.97 means your noise term is too small and the result is not credible.
-- [ ] **Fusion beats vision-only under inline imaging** by a margin you can state and defend
+- [ ] **Process-only ROC-AUC in 0.80–0.88, averaged over ≥5 twin seeds.** Above the band → raise `noise_sd` or lower `signal_gain` and regenerate. Real foundries cannot predict this well from process data alone; 0.97 means the noise term is too small and the result is not credible.
+- [ ] **Fusion beats vision-only under inline imaging** by a margin you can state and defend, reported as a *paired within-seed* difference
+
+> **Measured 2026-08-01 — read before trusting any single number here.**
+> The effective sample size is the number of **alloy lots, not parts**. At
+> `shots_per_lot=220` a 715-image test split contains only ~4 lots, and chemistry is drawn
+> per lot, so process-only AUC swings **0.61–0.87 across seeds (sd 0.086)**. Seed 42 alone
+> reads 0.93 — the highest of five, and out of band. Shortening lots tightens it
+> (10 lots → sd 0.037, 20 lots → sd 0.022) but 40 shots per furnace charge is not
+> physically defensible for HPDC, so the variance is **reported, not tuned away**.
+> `max |corr|` is seed-noisy for the same reason, and its top feature moves between
+> `fe_content_pct`, `pour_temp_c` and `tool_wear_shots` depending on the draw.
+>
+> Consequence: **single-seed gate readings are not evidence.** `defectlab ablate` runs
+> across seeds by default and reports mean ± sd. Absolute AUC is noisy; the paired
+> fusion-minus-vision difference is far tighter, because the image channel is identical
+> across twin seeds and cancels.
+
+### First measured 3×2 result — ResNet-18, 5 seeds
+
+| modality | regime | mean AUC | sd |
+|---|---|---|---|
+| vision | lab | 0.9964 | 0.0000 |
+| vision | inline | 0.9847 | 0.0000 |
+| process | either | 0.8372 | 0.0558 |
+| fusion | lab | 0.9955 | 0.0017 |
+| fusion | inline | 0.9882 | 0.0046 |
+
+Process-only sits **inside** the 0.80–0.88 band on the mean, so `signal_gain=3.0` needs no
+re-tuning; only the seed-42 reading (0.9266) was out of band.
+
+Paired fusion − vision, within seed:
+
+| regime | mean | sd | seeds positive | t (n=5) | p |
+|---|---|---|---|---|---|
+| inline | **+0.0035** | 0.0046 | 4/5 | 1.71 | **0.162** |
+| lab | −0.0009 | 0.0017 | 2/5 | −1.13 | 0.32 |
+
+**The fusion advantage is not yet established.** The direction is right and consistent
+(4/5 seeds), but the effect is under one standard deviation from zero. The single-seed
++0.0094 previously reported was the largest of the five.
+
+The cause is headroom, not fusion: inline degradation costs vision only **0.0117** AUC
+(0.9964 → 0.9847), so there is almost nothing for the process channel to recover. The
+mechanism is nonetheless visible — the per-seed gain tracks how informative that seed's
+process channel is, at **r = 0.74**. Testing the hypothesis properly needs a degradation
+severe enough to actually damage vision, which is what the severity sweep is for.
 - [ ] Reliability diagram shows calibration is actually improved
 - [ ] Mondrian CP achieves its nominal coverage on the defect class *specifically* (this is the whole point — check the class-conditional number, not the marginal one)
 - [ ] Every number in the results table is regenerable by one command

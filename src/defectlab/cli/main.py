@@ -70,12 +70,16 @@ def _add_extract(subparsers) -> None:
 
 def _add_ablate(subparsers) -> None:
     parser = subparsers.add_parser("ablate", help="run the 3x2 modality-by-regime ablation")
+    parser.add_argument("--root", default=str(commands.default_root()))
     parser.add_argument("--processed", default=str(commands.default_processed()))
     parser.add_argument("--out", default="results")
     parser.add_argument("--backbone", default="resnet18")
     parser.add_argument("--estimator", default="xgboost")
     parser.add_argument("--components", type=int, default=settings.pca_components)
-    parser.add_argument("--seed", type=int, default=settings.seed)
+    parser.add_argument("--seeds", default="42,7,99,123,2024", help="comma-separated twin seeds")
+    parser.add_argument("--signal-gain", type=float, default=settings.signal_gain)
+    parser.add_argument("--oversample", type=int, default=4)
+    parser.add_argument("--fit-seed", type=int, default=settings.seed)
     parser.set_defaults(handler=commands.ablate)
 
 

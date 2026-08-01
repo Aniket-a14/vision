@@ -56,22 +56,36 @@ def extract(args: argparse.Namespace) -> int:
 
 
 def ablate(args: argparse.Namespace) -> int:
-    """Run the 3x2 modality-by-regime ablation on cached embeddings."""
+    """Run the 3x2 ablation across twin seeds; one seed cannot estimate the spread."""
+    from ..models.ablation import fusion_gain, summarise
+
+    seeds = [int(value) for value in args.seeds.split(",")]
+    results = pd.concat([_ablate_seed(seed, args) for seed in seeds], ignore_index=True)
+    print("\n" + summarise(results).round(4).to_string(index=False))
+    print("\nfusion - vision, paired within seed:")
+    print(fusion_gain(results).round(4).to_string(index=False))
+    return _write_results(results, Path(args.out), args.backbone)
+
+
+def _ablate_seed(seed: int, args: argparse.Namespace) -> pd.DataFrame:
+    """Rebuild the twin for one seed; image order is fixed, so the caches still apply."""
     from ..models.ablation import AblationInputs, run
     from ..models.pipeline import FitConfig
 
     processed = Path(args.processed)
-    frames = {split: _paired(processed, split) for split in build_data.SPLITS}
+    config = TwinConfig(seed=seed, signal_gain=args.signal_gain)
+    dataset = build_data.build(Path(args.root), config, oversample=args.oversample)
     inputs = AblationInputs(
-        train_frame=frames["train"],
-        test_frame=frames["test"],
+        train_frame=dataset.train,
+        test_frame=dataset.test,
         regimes=[_regime_data(processed, args.backbone, regime) for regime in Regime],
         n_components=args.components,
-        fit_config=FitConfig(estimator=args.estimator, seed=args.seed),
+        fit_config=FitConfig(estimator=args.estimator, seed=args.fit_seed),
     )
     results = run(inputs)
-    print(results.round(4).to_string(index=False))
-    return _write_results(results, Path(args.out), args.backbone)
+    results.insert(0, "seed", seed)
+    print(f"seed {seed} done")
+    return results
 
 
 def gates(args: argparse.Namespace) -> int:

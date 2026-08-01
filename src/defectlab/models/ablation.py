@@ -68,6 +68,24 @@ def degradation_sweep(
     return pd.DataFrame(rows)
 
 
+def summarise(results: pd.DataFrame) -> pd.DataFrame:
+    """Spread across seeds; the number of alloy lots, not parts, sets the precision."""
+    grouped = results.groupby(["modality", "regime"])["roc_auc"]
+    return grouped.agg(["mean", "std", "min", "max"]).reset_index()
+
+
+def fusion_gain(results: pd.DataFrame) -> pd.DataFrame:
+    """Fusion minus vision, paired within seed so the image channel cancels out."""
+    wide = results.pivot_table(index=["seed", "regime"], columns="modality", values="roc_auc")
+    delta = (wide[Modality.FUSION.value] - wide[Modality.VISION.value]).rename("delta")
+    return (
+        delta.reset_index()
+        .groupby("regime")["delta"]
+        .agg(["mean", "std", "min", "max"])
+        .reset_index()
+    )
+
+
 def _iter_results(inputs: AblationInputs) -> Iterator[AblationResult]:
     for data in inputs.regimes:
         yield from _iter_modalities(inputs, data)
