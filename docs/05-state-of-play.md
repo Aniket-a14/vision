@@ -228,15 +228,18 @@ with no signatory is incomplete; say it before an examiner does.
 
 `postgres` and `redis` are in the `infra` profile and stay down; nothing in the build reads them.
 
-## Verified against a real MQTT broker
+## Verified running, not only built
 
-Not only the loopback transport:
+Against a real broker and the deployed stack:
 
 - 20 telemetry, 20 verdicts, 2 status messages, read by an **independent subscriber**. Verdicts
   carried `audit_hash`, so the MQTT path audits.
 - Retained status reached a subscriber that connected **after** the run ended.
-- **The last will fired 6.0 s after `kill`** on the publisher. This is the behaviour the loopback
-  cannot test and the reason MQTT is here rather than a second SSE feed.
+- **The last will fired 6.0 s after `kill`** on a host publisher, and **2.1 s after
+  `docker kill`** on the containerised one. This is the behaviour the loopback cannot test and
+  the reason MQTT is here rather than a second SSE feed.
+- Through nginx on :8080 — UI 200, `/api/health` ok, `/api/stream?limit=3` delivered 3 frames.
+  In a 25 s window the containerised line moved **26 telemetry and 25 verdicts**.
 
 ## Conventions that are load-bearing
 

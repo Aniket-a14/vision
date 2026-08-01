@@ -109,6 +109,15 @@ def test_the_api_and_the_gate_do_not_share_an_audit_volume():
     assert "gate-audit:/srv/data/processed" in text
 
 
+def test_the_line_containers_do_not_inherit_the_http_healthcheck():
+    """The image probes /health. Neither line container serves HTTP, so an inherited check would
+    mark them unhealthy forever and block anything waiting on `service_healthy`."""
+    text = _compose()
+    for service in ("linesim", "linegate"):
+        block = text.split(f"  {service}:", 1)[1].split("\n\n", 1)[0]
+        assert "healthcheck:\n      disable: true" in block, f"{service} inherits /health"
+
+
 def test_unused_infrastructure_is_behind_a_profile():
     """Nothing in the build reads postgres or redis, so nothing should start them."""
     for service in ("postgres", "redis"):

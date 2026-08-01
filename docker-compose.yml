@@ -41,6 +41,10 @@ services:
       context: .
       dockerfile: deploy/api.Dockerfile
     command: ["defectlab", "line", "--role", "publish", "--host", "mosquitto", "--cycle", "1.0"]
+    # The image's healthcheck probes /health; this container serves no HTTP and would sit
+    # unhealthy forever. Its liveness signal is the retained MQTT status topic, not a port.
+    healthcheck:
+      disable: true
     depends_on:
       mosquitto:
         condition: service_healthy
@@ -57,6 +61,8 @@ services:
       context: .
       dockerfile: deploy/api.Dockerfile
     command: ["defectlab", "line", "--role", "gate", "--host", "mosquitto"]
+    healthcheck:
+      disable: true
     volumes:
       - gate-audit:/srv/data/processed
     depends_on:

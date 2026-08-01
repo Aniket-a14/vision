@@ -65,6 +65,10 @@ behind a buffering proxy the SSE feed arrives in bursts when the buffer fills, o
 not ready the moment the port opens. A healthcheck that ignores this marks the service unhealthy
 and restarts it forever.
 
+**The line containers disable that healthcheck.** They run from the same image but serve no HTTP,
+so the inherited `/health` probe would mark them unhealthy forever and block anything waiting on
+`service_healthy`. Their liveness signal is the retained MQTT status topic, not a port.
+
 **The API and the MQTT gate have separate audit volumes.** The hash chain is **single-writer**:
 two processes appending to one file each compute `previous` from their own in-memory head, so
 the result would not verify. One log per decision-maker is the honest model anyway — the HTTP
@@ -74,9 +78,9 @@ gate and the MQTT gate are two different ones.
 and it is what makes `docker stop defectlab-linesim-1` demonstrate the last will rather than just
 stopping a thread.
 
-## Verified against a real broker
+## Verified running, not just built
 
-Not just the loopback:
+Against the real broker, from the host:
 
 - 20 telemetry, 20 verdicts and 2 status messages, read by an **independent subscriber** rather
   than by our own gate. Verdicts carried `audit_hash`, so the MQTT path audits.
@@ -84,6 +88,19 @@ Not just the loopback:
 - **The last will fired 6.0 s after `kill`** on the publisher — no clean disconnect, and the
   broker published `offline` on the cell's status topic for it. This is the behaviour the
   loopback transport cannot test and the reason MQTT is here rather than a second SSE feed.
+
+Against the deployed stack:
+
+| check | result |
+|---|---|
+| `GET :8080/` | 200, the built bundle |
+| `GET :8080/api/health` | `{"status":"ok","model_version":"process-xgboost-2"}` |
+| `GET :8080/api/stream?limit=3` | 3 `event: shot` frames through nginx |
+| broker traffic, 25 s window | **26 telemetry, 25 verdicts**, retained `running` status |
+| `docker kill defectlab-linesim-1` | broker published **`offline` in 2.1 s** |
+
+The last row is the one worth showing an examiner: pulling the plug on the machine container and
+having the *broker* announce it, with no consumer-side timeout involved.
 
 ## Not done
 
