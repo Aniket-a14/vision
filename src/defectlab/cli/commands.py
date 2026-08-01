@@ -413,6 +413,66 @@ def serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def line(args: argparse.Namespace) -> int:
+    """Publish twin telemetry over MQTT, score it, or do both against an in-process broker."""
+    from ..edge import LineConfig, LoopbackTransport, connect
+
+    transport = (
+        LoopbackTransport()
+        if args.loopback
+        else connect(args.host, args.port, args.cell, client_id=f"defectlab-{args.role}")
+    )
+    gate = _attach_gate(transport, args) if args.role in ("gate", "both") else None
+    try:
+        if args.role == "gate":
+            return _await_shots(transport, args)
+        produced = _run_line(transport, LineConfig(args.cell, args.cycle, args.limit), args.seed)
+    finally:
+        transport.close()
+    _report_line(produced, gate)
+    return 0
+
+
+def _attach_gate(transport, args: argparse.Namespace):
+    """Fitting happens before the first shot arrives, so no telemetry is missed while training."""
+    from ..api.audit import AuditLog
+    from ..api.scoring import build as build_scorer
+    from ..edge import Gate
+
+    LOG.info("fitting the gate model")
+    audit = None if args.no_audit else AuditLog(settings.paths.processed / "audit.jsonl")
+    gate = Gate(build_scorer(seed=args.seed, estimator=args.estimator), args.cell, audit)
+    gate.listen(transport)
+    return gate
+
+
+def _run_line(transport, config, seed: int) -> int:
+    from ..edge import run as run_line_publisher
+
+    return run_line_publisher(transport, config, TwinConfig(seed=seed))
+
+
+def _await_shots(transport, args: argparse.Namespace) -> int:
+    """A gate with no producer of its own just waits on the broker until interrupted."""
+    LOG.info("listening on %s", args.cell)
+    try:
+        while True:
+            time.sleep(1.0)
+    except KeyboardInterrupt:
+        return 0
+
+
+def _report_line(produced: int, gate) -> None:
+    print(f"published {produced} shots")
+    if gate is None:
+        return
+    rate = gate.flagged / gate.scored if gate.scored else 0.0
+    print(f"scored {gate.scored}  flagged {gate.flagged} ({rate:.1%})  dupes {gate.duplicates}")
+    if gate.audit is not None:
+        state = "intact" if gate.audit.verify().intact else "BROKEN"
+        print(f"audit {state}  head {gate.audit.head[:8]}")
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)
