@@ -26,12 +26,17 @@ over the whole dataset and there are only two regimes, not four.
 | Backbone | Dim | Per regime (7,348 images) | Both regimes | Basis |
 |---|---|---|---|---|
 | `resnet18` | 512 | **6 min 41 s** | **12 min 46 s** | measured end to end |
-| `dinov2_s` (ViT-S/14 @224) | 384 | ~52 min | ~1 h 45 min | extrapolated, not yet run |
+| `dinov2_s` (ViT-S/14 @224) | 384 | **~10 min 30 s** | ~21 min | measured at 11.6 img/s |
 
 The ResNet figure was an extrapolation from a 200-image slice and overstated the cost by
 4x; sustained throughput is 17–25 img/s, and the second regime is *faster* than the first
 because the images are already in the OS page cache and resolution loss shrinks the frame
-before the resize. Treat the DINOv2 row as unverified until it is measured the same way.
+before the resize.
+
+The DINOv2 estimate was 5x too pessimistic for the same reason. A 96-image benchmark gives
+7.8 img/s, but that still amortises model loading over too few batches; sustained rate is
+11.6 img/s. **Benchmark on a slice large enough to reach steady state, or do not quote the
+number.** A full ladder — lab plus five severities — is six passes, about an hour.
 
 **Consequences, decided:**
 - Headline caches use **`dinov2_s`**; `resnet18` is kept as a cheap fallback and a
