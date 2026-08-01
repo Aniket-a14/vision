@@ -5,7 +5,7 @@ Written 2026-08-01. Read this first when resuming; it is the only file that need
 ## Verify the build in one command
 
 ```
-./.venv/Scripts/python.exe -m pytest -q      # 243 tests
+./.venv/Scripts/python.exe -m pytest -q      # 322 tests
 ./.venv/Scripts/ruff.exe check . && ./.venv/Scripts/ruff.exe format --check .
 ./.venv/Scripts/lint-imports.exe             # 2 contracts, both KEPT
 ```
@@ -39,7 +39,8 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | slides | drafted — `docs/11-slides.md` | — |
 
 **The only thing left is the Power BI `.pbix` report pages**, a hard rubric requirement. The
-semantic model is generated; four pages need laying out in Desktop. See `docs/06-powerbi.md`.
+generated PBIP opens in Desktop and the model loads; four empty pages need visuals laying out
+and a Save As. See `docs/06-powerbi.md`.
 
 ## The results that are settled
 
