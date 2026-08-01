@@ -23,6 +23,20 @@ PROJECT = "DefectLab"
 COMPATIBILITY_LEVEL = 1567
 # Fixed so `logical_id` is reproducible; any constant UUID would do.
 LOGICAL_ID_NAMESPACE = uuid.UUID("6f8a1d2c-3b4e-5a6f-8c9d-0e1f2a3b4c5d")
+
+# Quoted verbatim from the Power BI Desktop error that rejected a guessed URL. `$schema` is
+# optional everywhere in a PBIP, but any that is present is pattern-matched -- so a wrong one is
+# worse than none. It is written only where the pattern is known, which is here.
+PBIP_SCHEMA_PATTERN = (
+    r"^https://developer\.microsoft\.com/json-schemas/fabric/pbip/"
+    r"pbipProperties/1\.[0-9]+\.[0-9]+/schema\.json$"
+)
+PBIP_SCHEMA = (
+    "https://developer.microsoft.com/json-schemas/fabric/pbip/pbipProperties/1.0.0/schema.json"
+)
+
+# The one .platform URL Desktop accepted; it failed on logicalId, never on this.
+PLATFORM_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json"
 PAGES = ("Line overview", "Why this part", "Cost of quality", "Process control")
 
 INTEGER_COLUMNS = frozenset(
@@ -248,18 +262,14 @@ def _database() -> str:
     return f"database\n\tcompatibilityLevel: {COMPATIBILITY_LEVEL}\n"
 
 
-def _schema_url(item: str) -> str:
-    return f"https://developer.microsoft.com/json-schemas/fabric/item/{item}/definitionProperties/1.0.0/schema.json"
-
-
 def _pbism() -> str:
-    payload = {"$schema": _schema_url("semanticModel"), "version": "1.0", "settings": {}}
-    return json.dumps(payload, indent=2) + "\n"
+    """No `$schema`. It is optional, and Desktop validates any it finds against a fixed pattern,
+    so a guessed URL is strictly worse than none -- which cost one failed open on the .pbip."""
+    return json.dumps({"version": "1.0", "settings": {}}, indent=2) + "\n"
 
 
 def _pbir() -> str:
     payload = {
-        "$schema": _schema_url("report"),
         "version": "1.0",
         "datasetReference": {"byPath": {"path": f"../{PROJECT}.SemanticModel"}},
     }
@@ -277,7 +287,7 @@ def logical_id(kind: str) -> str:
 
 def _platform(kind: str) -> str:
     payload = {
-        "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+        "$schema": PLATFORM_SCHEMA,
         "metadata": {"type": kind, "displayName": PROJECT},
         "config": {"version": "2.0", "logicalId": logical_id(kind)},
     }
@@ -285,8 +295,10 @@ def _platform(kind: str) -> str:
 
 
 def _pbip() -> str:
+    """The .pbip shortcut is not an item definition, so its schema lives under a different path
+    than the per-item ones. `PBIP_SCHEMA_PATTERN` is the regex Desktop itself reports."""
     payload = {
-        "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/pbip/definitionProperties/1.0.0/schema.json",
+        "$schema": PBIP_SCHEMA,
         "version": "1.0",
         "artifacts": [{"report": {"path": f"{PROJECT}.Report"}}],
         "settings": {"enableAutoRecovery": True},

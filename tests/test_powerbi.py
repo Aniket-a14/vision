@@ -1,12 +1,20 @@
 """The generated Power BI project must stay in step with the export contract."""
 
 import json
+import re
 import uuid
 
 import pytest
 
 from defectlab.export import TABLES, spec, write_project
-from defectlab.export.powerbi import MEASURES, PAGES, PROJECT, RELATIONSHIPS, logical_id
+from defectlab.export.powerbi import (
+    MEASURES,
+    PAGES,
+    PBIP_SCHEMA_PATTERN,
+    PROJECT,
+    RELATIONSHIPS,
+    logical_id,
+)
 
 
 @pytest.fixture(scope="module")
@@ -28,6 +36,24 @@ def test_the_logical_id_is_stable_across_regeneration():
     """Fabric treats a changed logicalId as a different artifact, so uuid4 would be wrong."""
     assert logical_id("Report") == logical_id("Report")
     assert logical_id("Report") != logical_id("SemanticModel")
+
+
+def test_the_pbip_schema_matches_the_pattern_desktop_enforces(project):
+    """Desktop pattern-matches this URL and refuses the project on a mismatch. The pattern is
+    quoted from its own error message, so this test is the spec rather than a guess about it."""
+    root, _ = project
+    schema = json.loads((root / f"{PROJECT}.pbip").read_text())["$schema"]
+    assert re.match(PBIP_SCHEMA_PATTERN, schema), schema
+
+
+@pytest.mark.parametrize(
+    "path", ["{p}.Report/definition.pbir", "{p}.SemanticModel/definition.pbism"]
+)
+def test_no_schema_is_guessed_where_the_pattern_is_unknown(project, path):
+    """`$schema` is optional but validated when present, so writing one we cannot verify is
+    strictly worse than omitting it. Adding two on a guess cost a failed open."""
+    root, _ = project
+    assert "$schema" not in json.loads((root / path.format(p=PROJECT)).read_text())
 
 
 def test_every_contracted_table_becomes_a_tmdl_file(project):
