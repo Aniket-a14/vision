@@ -72,6 +72,8 @@ packages = ["src/defectlab"]
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+# The build guide is the original specification; its snippets are a record, not our code.
+extend-exclude = ["multimodal_defect_prediction_build_guide.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF", "PL"]

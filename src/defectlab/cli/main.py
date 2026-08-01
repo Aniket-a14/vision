@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import sys
 from collections.abc import Sequence
 
 from ..config import settings
@@ -21,7 +23,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    configure_logging(getattr(args, "quiet", False))
     return args.handler(args)
+
+
+def configure_logging(quiet: bool = False) -> None:
+    """Progress goes to stderr so piped stdout stays machine-readable."""
+    logging.basicConfig(
+        level=logging.WARNING if quiet else logging.INFO,
+        format="%(asctime)s  %(message)s",
+        datefmt="%H:%M:%S",
+        stream=sys.stderr,
+        force=True,
+    )
+    for noisy in ("httpx", "urllib3", "filelock", "timm"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def _add_verify(subparsers) -> None:
@@ -47,6 +63,7 @@ def _add_extract(subparsers) -> None:
     parser.add_argument("--regime", default="both", choices=["lab", "inline", "both"])
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=settings.seed)
+    parser.add_argument("--quiet", action="store_true", help="suppress per-batch progress")
     parser.set_defaults(handler=commands.extract)
 
 

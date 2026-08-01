@@ -14,6 +14,7 @@ import numpy as np
 
 from .backbones import build, build_transform, configure_threads
 from .degrade import InlineCamera, Regime, apply_regime
+from .progress import LOG, Progress, clock
 
 
 class ImageReadError(RuntimeError):
@@ -34,11 +35,16 @@ def extract_split(
 ) -> np.ndarray:
     """Forward every image once and stack the embeddings."""
     configure_threads()
+    LOG.info("loading %s for %s (%d images)", backbone, regime.value, len(paths))
     model, spec = build(backbone)
     transform = build_transform(model, spec)
     rng = np.random.default_rng(seed)
-    batches = _iter_batches(paths, batch_size)
-    embeddings = [_embed(model, transform, batch, regime, rng, camera) for batch in batches]
+    tracker = Progress(len(paths), f"{backbone}/{regime.value}")
+    embeddings = []
+    for batch in _iter_batches(paths, batch_size):
+        embeddings.append(_embed(model, transform, batch, regime, rng, camera))
+        tracker.update(len(batch))
+    LOG.info("done %s in %s at %.1f img/s", tracker.label, clock(tracker.elapsed()), tracker.rate())
     return np.vstack(embeddings).astype(np.float32)
 
 
@@ -53,6 +59,7 @@ def extract_cached(
 ) -> np.ndarray:
     """Return cached features when present, otherwise extract and cache them."""
     if destination.exists():
+        LOG.info("cache hit %s, skipping extraction", destination.name)
         return np.load(destination)
     features = extract_split(paths, regime, backbone, seed, batch_size, camera)
     destination.parent.mkdir(parents=True, exist_ok=True)
