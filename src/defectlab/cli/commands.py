@@ -141,13 +141,26 @@ def _ablate_severity(dataset, severity: float, args: argparse.Namespace) -> pd.D
 
 
 def figures(args: argparse.Namespace) -> int:
-    """Render the sweep charts from a results table written by `ablate`."""
-    from ..report import write_sweep_figures
+    """Render the sweep charts from one or more results tables written by `ablate`."""
+    from ..report import write_comparison_figure, write_sweep_figures
 
-    results = pd.read_csv(args.results)
-    for path in write_sweep_figures(results, Path(args.out)):
+    tables = [Path(value) for value in args.results.split(",")]
+    written = list(write_sweep_figures(pd.read_csv(tables[0]), Path(args.out)))
+    if len(tables) > 1:
+        written.append(write_comparison_figure(_labelled(tables), Path(args.out)))
+    for path in written:
         print(f"wrote {path}")
     return 0
+
+
+def _labelled(tables: list[Path]) -> pd.DataFrame:
+    """The backbone is not a column in the results; it is in the file name."""
+    frames = [pd.read_csv(path).assign(backbone=_backbone_of(path)) for path in tables]
+    return pd.concat(frames, ignore_index=True)
+
+
+def _backbone_of(path: Path) -> str:
+    return path.stem.removeprefix("ablation_")
 
 
 def gates(args: argparse.Namespace) -> int:

@@ -38,6 +38,18 @@ def test_figures_are_written_into_a_missing_directory(results, tmp_path):
     assert all(path.exists() for path in written)
 
 
+def test_comparison_figure_spans_both_backbones(results, tmp_path):
+    from defectlab.report import write_comparison_figure
+
+    paired = pd.concat(
+        [results.assign(backbone="resnet18"), results.assign(backbone="dinov2_s")],
+        ignore_index=True,
+    )
+    written = write_comparison_figure(paired, tmp_path)
+    assert written.name == "headroom_curve.png"
+    assert written.stat().st_size > 0
+
+
 def test_a_single_seed_still_renders(results, tmp_path):
     """Standard deviation is undefined for one seed; the ribbon must not crash the chart."""
     written = write_sweep_figures(results[results["seed"] == 1], tmp_path)

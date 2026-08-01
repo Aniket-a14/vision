@@ -169,6 +169,36 @@ Three limits that stay in the writeup:
   the paired variance comes from fusion.
 
 The severity ladder was fixed before any result was seen, and the whole curve is reported.
+
+### Backbone replication — DINOv2-S, same seeds and same ladder
+
+| backbone | vision 0.5 → 3.0 | AUC lost | slope | t | p | seeds + |
+|---|---|---|---|---|---|---|
+| `resnet18` | 0.9985 → 0.8374 | 0.161 | +0.0258 | 3.39 | **0.028** | 5/5 |
+| `dinov2_s` | 0.9994 → 0.9157 | 0.084 | +0.0076 | 1.84 | 0.140 | 4/5 |
+
+**The direction replicates; the significance does not.** Reporting only the ResNet row would
+be selective — both were run, so both are shown.
+
+The gap is headroom again, not architecture. DINOv2-S is the more robust encoder and loses
+only half as much AUC to the same camera, so there is half as much for the process channel
+to recover. Plotting the gain against **vision AUC** instead of against severity puts the two
+backbones on one relationship:
+
+> pooled gain = 0.348 − 0.351 x vision AUC, **r = −0.73**
+
+Per-backbone slopes are −0.387 (ResNet) and −0.224 (DINOv2), which overlap at this n.
+
+**Significance of that relationship, stated conservatively: t = −2.66, p = 0.056, n = 5.**
+The unit of analysis is the twin seed, not the (backbone, seed) pair — both sweeps reuse the
+same five seeds, so they share a process channel and a label vector. Treating the ten pairs
+as independent gives p = 0.005 and is wrong; the honest number is the marginal one.
+
+So the mechanism is coherent and consistent across two architectures, but with five
+lot-limited seeds only the ResNet severity trend clears p < 0.05, and that is one of the two
+backbones tested. **Claim the dose-response direction; do not claim it is established.**
+Adding seeds is the cheapest way to settle it — the image caches are seed-invariant, so more
+seeds cost model fits only, not extraction.
 - [ ] Reliability diagram shows calibration is actually improved
 - [ ] Mondrian CP achieves its nominal coverage on the defect class *specifically* (this is the whole point — check the class-conditional number, not the marginal one)
 - [ ] Every number in the results table is regenerable by one command

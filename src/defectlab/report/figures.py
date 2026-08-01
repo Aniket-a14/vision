@@ -88,6 +88,58 @@ def gain_curve(results: pd.DataFrame, axes) -> None:
 
 def _seed_points(results: pd.DataFrame, axes) -> None:
     """Individual seeds, so a positive mean cannot hide a seed that disagrees."""
-    wide = results.pivot_table(index=["seed", "severity"], columns="modality", values="roc_auc")
-    delta = (wide["fusion"] - wide["vision"]).reset_index()
-    axes.scatter(delta["severity"], delta[0], color="#888888", s=14, zorder=3, label="per seed")
+    delta = _deltas(results)
+    axes.scatter(
+        delta["severity"], delta["delta"], color="#888888", s=14, zorder=3, label="per seed"
+    )
+
+
+def _deltas(results: pd.DataFrame) -> pd.DataFrame:
+    """Fusion minus vision per seed and severity, keeping any backbone label."""
+    index = [name for name in ("backbone", "seed", "severity") if name in results.columns]
+    wide = results.pivot_table(index=index, columns="modality", values="roc_auc")
+    return (wide["fusion"] - wide["vision"]).rename("delta").reset_index()
+
+
+BACKBONE_MARKERS = {"resnet18": "o", "dinov2_s": "s"}
+BACKBONE_COLOURS = {"resnet18": "#8e44ad", "dinov2_s": "#d35400"}
+
+
+def write_comparison_figure(results: pd.DataFrame, out: Path) -> Path:
+    """The headroom chart, which needs a `backbone` column spanning both sweeps."""
+    out.mkdir(parents=True, exist_ok=True)
+    return _render(headroom_curve, results, out / "headroom_curve.png")
+
+
+def headroom_curve(results: pd.DataFrame, axes) -> None:
+    """Gain against vision AUC. Severity is a dial; what fusion answers to is headroom."""
+    deltas = _deltas(results)
+    for backbone, frame in deltas.groupby("backbone"):
+        _headroom_points(axes, results, frame, str(backbone))
+    axes.axhline(0.0, color="#555555", linewidth=1.0, linestyle="--")
+    axes.invert_xaxis()
+    axes.set_xlabel("vision-only ROC-AUC (worse camera to the right)")
+    axes.set_ylabel("fusion - vision (ROC-AUC)")
+    axes.set_title("The gain tracks what the camera cost vision, not the backbone")
+    axes.legend(frameon=False)
+    axes.grid(alpha=0.25)
+
+
+def _headroom_points(axes, results: pd.DataFrame, frame: pd.DataFrame, backbone: str) -> None:
+    vision = _vision_auc(results, backbone)
+    merged = frame.assign(vision=frame["severity"].map(vision))
+    axes.scatter(
+        merged["vision"],
+        merged["delta"],
+        marker=BACKBONE_MARKERS.get(backbone, "o"),
+        color=BACKBONE_COLOURS.get(backbone, "#333333"),
+        alpha=0.7,
+        s=28,
+        label=backbone,
+    )
+
+
+def _vision_auc(results: pd.DataFrame, backbone: str) -> pd.Series:
+    """Vision is identical across seeds, so one value per severity is the whole story."""
+    frame = results[(results["backbone"] == backbone) & (results["modality"] == "vision")]
+    return frame.groupby("severity")["roc_auc"].mean()

@@ -89,7 +89,11 @@ def _add_ablate(subparsers) -> None:
 
 def _add_figures(subparsers) -> None:
     parser = subparsers.add_parser("figures", help="render the sweep charts from a results table")
-    parser.add_argument("--results", default="results/ablation_resnet18.csv")
+    parser.add_argument(
+        "--results",
+        default="results/ablation_resnet18.csv",
+        help="comma-separated results tables; more than one adds the backbone comparison",
+    )
     parser.add_argument("--out", default="results/figures")
     parser.set_defaults(handler=commands.figures)
 
