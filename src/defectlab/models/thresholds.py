@@ -2,6 +2,9 @@
 
 Thresholds are chosen on calibrated probabilities. An escape costs far more than an
 overkill, so the optimum sits well below 0.5.
+
+This minimises over the data as it arrives. `economics.policy` does the same minimisation
+over the line as it actually runs, weighting the two error rates by the deployment prior.
 """
 
 from __future__ import annotations
@@ -11,15 +14,18 @@ from dataclasses import dataclass
 import numpy as np
 from sklearn.metrics import confusion_matrix
 
+from ..economics import CostMatrix
 
-@dataclass(frozen=True, slots=True)
-class CostMatrix:
-    escape: float = 250.0
-    overkill: float = 4.0
-
-    @property
-    def ratio(self) -> float:
-        return self.escape / self.overkill
+# Re-exported: the cost matrix is an economic object, but every caller reaches it from here.
+__all__ = [
+    "CostMatrix",
+    "ThresholdSweep",
+    "alert_budget",
+    "choose",
+    "cost_optimal",
+    "neyman_pearson",
+    "sweep",
+]
 
 
 @dataclass(frozen=True, slots=True)

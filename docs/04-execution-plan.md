@@ -255,6 +255,61 @@ seeds cost model fits only, not extraction.
 | 3 | **Deploy**: Fly.io or Railway free tier. Live line + sandbox both reachable. Rebuild and test the **offline bundle** — your viva demo must work with no network. |
 | 4–5 | **Report + slides.** Every figure regenerated from a script. Write the limitations section properly — a candid one signals you understand your work; a defensive one signals the opposite. |
 
+### Measured economics — ResNet-18 fusion, severity 2, corrected to a 3 % line
+
+`defectlab economics --severity 2` re-prices the model on the line rather than on the test set.
+Two corrections are applied and both matter: probabilities are shifted from the training
+prevalence (0.567) to 0.030 by the Elkan odds rescaling, and the two error rates are then
+weighted by that same prior instead of by the test mixture. Skipping either would price a
+factory that does not exist.
+
+Cost per 1,000 shots, with scrap €12, inspection €3, M = 25×:
+
+| Policy | Prevention | Appraisal | Internal failure | External failure | Total | €/shot |
+|---|---|---|---|---|---|---|
+| **Model gate** | 50.00 | 495.79 | 339.34 | 516.56 | **1,401.68** | **1.40** |
+| Ship everything | 0 | 0 | 0 | 9,000.00 | 9,000.00 | 9.00 |
+| Inspect everything | 0 | 3,000.00 | 360.00 | 0 | 3,360.00 | 3.36 |
+
+Optimal threshold 0.015, escape rate 0.057, overkill rate 0.141.
+
+**The saving that does not depend on M.** Savings against ship-everything are almost entirely a
+restatement of the multiplier — they run €2,529 to €16,253 across M = 10–50×, which is a range
+too wide to quote. Savings against *100 % manual inspection* move the other way and barely move
+at all: €2,289 down to €1,613 over the same range, positive throughout. That is the defensible
+headline, because it survives the worst case of the one input that was guessed.
+
+**Alert rate lands inside the human-factors budget unforced.** At the cost optimum the gate flags
+16.5 % of shots; on a one-minute cycle that is **9.9 alarms/hour**, inside the ISA-18.2 6–12/hour
+band. The alert-budget constraint deferred from `models/pipeline.py` therefore never binds here —
+it was disabled because a 57 % prevalence made it starve recall, and once the prior is corrected
+the economic optimum satisfies it on its own. Worth stating plainly: this is a result, not a
+constraint that was imposed and then reported as a success.
+
+### Taguchi loss — read the ratio, not the euros
+
+Absolute off-target loss comes out at €13.31/shot against a €12 part, which is not credible. The
+cause is structural, not a bug: with Δ₀ = 3σ a parameter drawn at its own declared spread has
+expected loss A₀/9 ≈ €1.33 *whatever A₀ is*, and there are ten parameters. The absolute figure is
+an artefact of the tolerance assumption, so the table reports `baseline_ratio` against A₀/σ².
+
+| Parameter | Baseline ratio | Reading |
+|---|---|---|
+| `pour_temp_c` | 2.64 | genuine drift away from target added by the line dynamics |
+| `intensification_pressure_mpa` | 1.16 | slightly above an independent draw |
+| `cooling_time_s`, `hold_time_s`, `slow_shot`, `fast_shot` | 0.98–1.02 | dynamics add nothing; these are the control |
+| `fe_content_pct`, `si_content_pct` | 0.60–0.67 | lot-level, so constant within a lot |
+| `die_temp_c` | 0.49 | damped below its declared spread by die thermal inertia |
+| `mn_content_pct` | 0.43 | lot-level |
+
+Six parameters sitting at exactly 1.0 is the useful part: it means the ratio is measuring the
+dynamics and nothing else. `die_temp_c` at 0.49 and the chemistry columns below 0.7 are both
+independently predicted by the twin's own physics — a slow thermal state variable and a
+lot-level draw respectively — so this doubles as a cross-check on the dynamics.
+
+`tool_wear_shots` is excluded: it has no nominal to sit on, and a quadratic penalty around 25,000
+shots would be meaningless.
+
 ### Gate 4
 
 - [ ] Every figure in the report regenerable by one command

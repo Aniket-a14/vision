@@ -244,6 +244,62 @@ def _write_attribution(attribution, test: pd.DataFrame, out: Path, backbone: str
     return 0
 
 
+def economics(args: argparse.Namespace) -> int:
+    """Price one fitted cell: corrected priors, PAF ledger, and the sensitivity band."""
+    from ..economics import CostModel, operate, prevalence, shift
+    from ..models.pipeline import FitConfig, fit
+
+    dataset, blocks = _explain_blocks(args)
+    labels = dataset.test["label"].to_numpy()
+    model = fit(
+        blocks.train, dataset.train["label"].to_numpy(), FitConfig(estimator=args.estimator)
+    )
+    source = prevalence(dataset.train["label"].to_numpy())
+    scores = shift(model.score(blocks.test), source, args.prevalence)
+    costs = CostModel(args.scrap, args.inspection, args.escape_multiplier)
+    point = operate(labels, scores, args.prevalence, costs, args.shots)
+    _print_economics(point, source, args)
+    return _write_economics(labels, scores, point, costs, args)
+
+
+def _print_economics(point, source: float, args: argparse.Namespace) -> None:
+    print(f"prior correction {source:.3f} -> {args.prevalence:.3f}")
+    print(
+        f"threshold {point.threshold:.3f}  escape {point.gate.outcome.escape_rate:.3f}  "
+        f"overkill {point.gate.outcome.overkill_rate:.3f}"
+    )
+    print(f"alert rate {point.gate.alert_rate:.3f}  ({_alarms_per_hour(point.gate):.1f}/hour)")
+    print(f"\ncost per {args.shots} shots:")
+    print(point.frame().round(2).to_string())
+    print(
+        f"\nsaving vs ship-all {point.savings_vs_ship:,.0f}  "
+        f"vs inspect-all {point.savings_vs_inspect:,.0f}"
+    )
+
+
+SHOTS_PER_HOUR = 60.0
+
+
+def _alarms_per_hour(gate) -> float:
+    """ISA-18.2 caps an operator at 6-12 alarms/hour; a one-minute cycle makes that comparable."""
+    return gate.alert_rate * SHOTS_PER_HOUR
+
+
+def _write_economics(labels, scores, point, costs, args: argparse.Namespace) -> int:
+    """The sweeps are the honest headline; a single saving figure hides the guessed multiplier."""
+    from ..economics import multiplier_sweep
+
+    band = multiplier_sweep(labels, scores, args.prevalence, costs, shots=args.shots)
+    print("\nsensitivity to the escape multiplier:")
+    print(band.round(2).to_string(index=False))
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    destination = out / f"economics_{args.backbone}.csv"
+    band.to_csv(destination, index=False)
+    print(f"\nwrote {destination}")
+    return 0
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)

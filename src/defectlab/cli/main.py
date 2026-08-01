@@ -8,6 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from ..config import settings
+from ..economics import CostModel
 from . import commands
 
 
@@ -20,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_ablate(subparsers)
     _add_figures(subparsers)
     _add_explain(subparsers)
+    _add_economics(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -114,6 +116,27 @@ def _add_explain(subparsers) -> None:
     parser.add_argument("--oversample", type=int, default=4)
     _add_twin_arguments(parser)
     parser.set_defaults(handler=commands.explain)
+
+
+def _add_economics(subparsers) -> None:
+    parser = subparsers.add_parser("economics", help="price one cell in money, not in AUC")
+    parser.add_argument("--root", default=str(commands.default_root()))
+    parser.add_argument("--processed", default=str(commands.default_processed()))
+    parser.add_argument("--out", default="results")
+    parser.add_argument("--backbone", default="resnet18")
+    parser.add_argument("--estimator", default="xgboost")
+    parser.add_argument("--modality", default="fusion", choices=["vision", "process", "fusion"])
+    parser.add_argument("--regime", default="inline", choices=["lab", "inline"])
+    parser.add_argument("--severity", type=float, default=1.0)
+    parser.add_argument("--components", type=int, default=settings.pca_components)
+    parser.add_argument("--oversample", type=int, default=4)
+    parser.add_argument("--prevalence", type=float, default=settings.target_defect_rate)
+    parser.add_argument("--scrap", type=float, default=CostModel().scrap)
+    parser.add_argument("--inspection", type=float, default=CostModel().inspection)
+    parser.add_argument("--escape-multiplier", type=float, default=CostModel().escape_multiplier)
+    parser.add_argument("--shots", type=int, default=1000, help="parts per costed batch")
+    _add_twin_arguments(parser)
+    parser.set_defaults(handler=commands.economics)
 
 
 def _add_gates(subparsers) -> None:
