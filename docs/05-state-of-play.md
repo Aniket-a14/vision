@@ -35,9 +35,11 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `app/` | done — React operator UI | `npm run dev` in `app/` |
 | `deploy/` | done — compose stack, two images | `docker compose up --build` |
 | offline bundle | done — verified by deleting every image | `python deploy/bundle.py` |
+| report | drafted — `docs/10-report.md` | — |
+| slides | drafted — `docs/11-slides.md` | — |
 
-Not started: report, slides, and the **Power BI `.pbix` report pages**, which are the last manual
-step on a hard rubric requirement.
+**The only thing left is the Power BI `.pbix` report pages**, a hard rubric requirement. The
+semantic model is generated; four pages need laying out in Desktop. See `docs/06-powerbi.md`.
 
 ## The results that are settled
 
@@ -287,8 +289,8 @@ plus jobs for the frontend (tsc, oxlint, build) and the bundle.
    from `export/schema.py` so they cannot drift). **Read `docs/06-powerbi.md`** — it has the
    page-by-page build guide. Open the PBIP in Desktop, lay out four pages, File → Save As.
    This is the last manual step on the hard rubric item and it is maybe an hour.
-2. Deploy (`docker compose` already defines postgres, mosquitto and redis), offline bundle,
-   report, slides.
+2. Turn `docs/10-report.md` and `docs/11-slides.md` into whatever format the submission wants.
+   Both are drafted with every number checked; neither has been through a supervisor.
 
 A note on ordering, learned the hard way: breadth-first beats depth-first here. Adding seeds to
 an already-significant result optimises the thing most recently looked at, while a
