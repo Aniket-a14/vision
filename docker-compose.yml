@@ -1,8 +1,72 @@
 name: defectlab
 
+# `docker compose up` brings up the whole demo: broker, scoring service, line simulator and the
+# operator UI on http://localhost:8080. Postgres and redis are declared for the historian and
+# the SSE fan-out; nothing in the current build reads them, so they are in the `infra` profile
+# and stay down unless asked for.
+
 services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports: ["1883:1883"]
+    volumes:
+      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -W 3 -q 1 >/dev/null"]
+      interval: 10s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    environment:
+      DEFECTLAB_TARGET_DEFECT_RATE: "0.03"
+    volumes:
+      - api-audit:/srv/data/processed
+    ports: ["8000:8000"]
+
+  app:
+    build:
+      context: .
+      dockerfile: deploy/app.Dockerfile
+    ports: ["8080:80"]
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # The machine. It publishes and does not score, which is the split a real cell has.
+  linesim:
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    command: ["defectlab", "line", "--role", "publish", "--host", "mosquitto", "--cycle", "1.0"]
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # The gate. Separate container so killing the line proves the last will fires.
+  #
+  # Its own audit volume, deliberately. The hash chain is single-writer: two processes appending
+  # to one file each compute `previous` from their own in-memory head, so the chain would not
+  # verify. One log per decision-maker is the honest model anyway -- the HTTP gate and the MQTT
+  # gate are two of them.
+  linegate:
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    command: ["defectlab", "line", "--role", "gate", "--host", "mosquitto"]
+    volumes:
+      - gate-audit:/srv/data/processed
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: timescale/timescaledb:2.26.0-pg18
+    profiles: ["infra"]
     environment:
       POSTGRES_USER: defectlab
       POSTGRES_PASSWORD: defectlab
@@ -16,16 +80,13 @@ services:
       interval: 5s
       retries: 10
 
-  mosquitto:
-    image: eclipse-mosquitto:2.0
-    ports: ["1883:1883"]
-    volumes:
-      - ./deploy/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-
   redis:
     image: redis:8-alpine
+    profiles: ["infra"]
     ports: ["6379:6379"]
     command: ["redis-server", "--save", "", "--appendonly", "no"]
 
 volumes:
   pgdata:
+  api-audit:
+  gate-audit:

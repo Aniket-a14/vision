@@ -1,4 +1,11 @@
-"""One function per CLI command. Each delegates to the library and prints a summary."""
+"""One function per CLI command. Each delegates to the library and prints a summary.
+
+Imaging is imported inside the commands that use it, not at module scope. `imaging` imports
+OpenCV, and this module is the entry point for *every* command -- including `line`, which runs in
+a container that has no OpenCV and no reason to. The same coupling crashed the serving image.
+
+`TYPE_CHECKING` covers the `Regime` annotations, which cost nothing at runtime.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +14,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -14,10 +22,10 @@ import pandas as pd
 from ..config import settings
 from ..data import build as build_data
 from ..data.images import verify_counts
-from ..imaging import Regime
-from ..imaging.degrade import InlineCamera
-from ..imaging.features import cache_path, extract_cached
 from ..twin import FEATURES, TwinConfig, run_line, score
+
+if TYPE_CHECKING:
+    from ..imaging import Regime
 
 LOG = logging.getLogger("defectlab.cli")
 
@@ -44,6 +52,9 @@ def simulate(args: argparse.Namespace) -> int:
 
 def extract(args: argparse.Namespace) -> int:
     """Extract and cache image embeddings for one backbone and regime."""
+    from ..imaging.degrade import InlineCamera
+    from ..imaging.features import cache_path, extract_cached
+
     processed = Path(args.processed)
     for split in build_data.SPLITS:
         frame = pd.read_parquet(processed / f"{split}_paired.parquet")
@@ -65,7 +76,9 @@ def extract(args: argparse.Namespace) -> int:
 
 def _severities(args: argparse.Namespace, regime: Regime) -> tuple[float, ...]:
     """The lab regime is undegraded, so sweeping severity there would repeat one pass."""
-    if regime is Regime.LAB:
+    from ..imaging import Regime as RegimeEnum
+
+    if regime is RegimeEnum.LAB:
         return (1.0,)
     return tuple(float(value) for value in args.severities.split(","))
 
@@ -123,11 +136,12 @@ def _ablate_seed(
 
 def _ablate_severity(dataset, severity: float, args: argparse.Namespace) -> pd.DataFrame:
     """Image order is fixed across twin seeds, so the caches apply unchanged."""
+    from ..imaging import Regime as RegimeEnum
     from ..models.ablation import AblationInputs, run
     from ..models.pipeline import FitConfig
 
     processed = Path(args.processed)
-    regimes = [Regime(name) for name in args.regimes.split(",")]
+    regimes = [RegimeEnum(name) for name in args.regimes.split(",")]
     inputs = AblationInputs(
         train_frame=dataset.train,
         test_frame=dataset.test,
@@ -217,11 +231,12 @@ def _print_anchor(model, blocks, args: argparse.Namespace) -> None:
 
 def _explain_blocks(args: argparse.Namespace):
     """The twin is rebuilt so the explanation lines up with the rows it describes."""
+    from ..imaging import Regime as RegimeEnum
     from ..models.features import Modality, build_blocks
 
     config = TwinConfig(seed=args.seed, signal_gain=args.signal_gain)
     dataset = build_data.build(Path(args.root), config, oversample=args.oversample)
-    regime = Regime(args.regime)
+    regime = RegimeEnum(args.regime)
     data = _regime_data(Path(args.processed), args.backbone, regime, args.severity)
     blocks = build_blocks(
         Modality(args.modality),
@@ -423,13 +438,17 @@ def line(args: argparse.Namespace) -> int:
         else connect(args.host, args.port, args.cell, client_id=f"defectlab-{args.role}")
     )
     gate = _attach_gate(transport, args) if args.role in ("gate", "both") else None
+    produced = 0
     try:
         if args.role == "gate":
-            return _await_shots(transport, args)
-        produced = _run_line(transport, LineConfig(args.cell, args.cycle, args.limit), args.seed)
+            _await_shots(gate, args)
+        else:
+            produced = _run_line(
+                transport, LineConfig(args.cell, args.cycle, args.limit), args.seed
+            )
     finally:
         transport.close()
-    _report_line(produced, gate)
+    _report_line(produced, gate, args.role)
     return 0
 
 
@@ -452,18 +471,24 @@ def _run_line(transport, config, seed: int) -> int:
     return run_line_publisher(transport, config, TwinConfig(seed=seed))
 
 
-def _await_shots(transport, args: argparse.Namespace) -> int:
-    """A gate with no producer of its own just waits on the broker until interrupted."""
+def _await_shots(gate, args: argparse.Namespace) -> None:
+    """Wait on the broker until `--limit` or an interrupt.
+
+    The bound is "at least", not "exactly": messages land on paho's network thread, so a poll can
+    cross the limit while it sleeps. Refusing the extra ones would mean dropping delivered
+    telemetry to make a counter look tidy.
+    """
     LOG.info("listening on %s", args.cell)
     try:
-        while True:
-            time.sleep(1.0)
+        while args.limit is None or gate.scored < args.limit:
+            time.sleep(0.2)
     except KeyboardInterrupt:
-        return 0
+        LOG.info("interrupted")
 
 
-def _report_line(produced: int, gate) -> None:
-    print(f"published {produced} shots")
+def _report_line(produced: int, gate, role: str) -> None:
+    if role != "gate":
+        print(f"published {produced} shots")
     if gate is None:
         return
     rate = gate.flagged / gate.scored if gate.scored else 0.0
@@ -485,7 +510,9 @@ def gates(args: argparse.Namespace) -> int:
 
 
 def _regimes(name: str) -> tuple[Regime, ...]:
-    return tuple(Regime) if name == "both" else (Regime(name),)
+    from ..imaging import Regime as RegimeEnum
+
+    return tuple(RegimeEnum) if name == "both" else (RegimeEnum(name),)
 
 
 def _paired(processed: Path, split: str) -> pd.DataFrame:
@@ -494,6 +521,7 @@ def _paired(processed: Path, split: str) -> pd.DataFrame:
 
 def _regime_data(processed: Path, backbone: str, regime: Regime, severity: float = 1.0):
     """Embeddings must already be cached; extraction is a separate, explicit step."""
+    from ..imaging.features import cache_path
     from ..models.ablation import RegimeData
 
     paths = {

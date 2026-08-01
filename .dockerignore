@@ -1,0 +1,24 @@
+# The build context is copied on every build; the datasets and caches are gigabytes of it.
+
+.git
+.github
+.venv
+.pytest_cache
+.ruff_cache
+.import_linter_cache
+__pycache__
+*.pyc
+
+data
+results
+figures
+logs
+powerbi
+docs
+
+app/node_modules
+app/dist
+
+.env
+*.md
+!README.md

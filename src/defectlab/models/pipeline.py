@@ -1,17 +1,19 @@
-"""End-to-end train, calibrate, conformalise and score for one ablation cell."""
+"""Train, calibrate, conformalise and score one model.
+
+Deliberately free of any imaging import. `AblationResult` and `run_cell` used to live here and
+dragged `imaging.Regime` in with them, which meant the serving container had to install OpenCV to
+score process telemetry. They are ablation concerns and now sit in `ablation.py`.
+"""
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
 
-from ..imaging import Regime
-from .conformal import MondrianConformal, PredictionSets, coverage_by_class
+from .conformal import MondrianConformal, PredictionSets
 from .estimators import build, positive_class_scores
-from .evaluation import Scores, evaluate
-from .features import Modality
 from .thresholds import CostMatrix, choose
 
 CALIBRATION_FRACTION = 0.25
@@ -54,29 +56,6 @@ class FittedModel:
         return self.conformal.predict_sets(self.score(features))
 
 
-@dataclass(frozen=True, slots=True)
-class AblationResult:
-    modality: Modality
-    regime: Regime
-    estimator: str
-    scores: Scores
-    threshold: float
-    abstention_rate: float
-    conformal_coverage: dict[int, float]
-
-    def as_row(self) -> dict[str, object]:
-        return {
-            "modality": self.modality.value,
-            "regime": self.regime.value,
-            "estimator": self.estimator,
-            "threshold": self.threshold,
-            "abstention_rate": self.abstention_rate,
-            "coverage_defect": self.conformal_coverage[1],
-            "coverage_ok": self.conformal_coverage[0],
-            **asdict(self.scores),
-        }
-
-
 def fit(features: np.ndarray, labels: np.ndarray, config: FitConfig | None = None) -> FittedModel:
     """Fit, then calibrate and conformalise on a held-out slice of the training set."""
     settings = config or FitConfig()
@@ -92,24 +71,6 @@ def fit(features: np.ndarray, labels: np.ndarray, config: FitConfig | None = Non
         max_alert_rate=settings.max_alert_rate,
     )
     return FittedModel(model, conformal, threshold)
-
-
-def run_cell(
-    modality: Modality, regime: Regime, data: CellData, config: FitConfig | None = None
-) -> AblationResult:
-    settings = config or FitConfig()
-    model = fit(data.train_features, data.train_labels, settings)
-    test_scores = model.score(data.test_features)
-    sets = model.conformal.predict_sets(test_scores)
-    return AblationResult(
-        modality=modality,
-        regime=regime,
-        estimator=settings.estimator,
-        scores=evaluate(data.test_labels, test_scores, model.threshold),
-        threshold=model.threshold,
-        abstention_rate=sets.abstention_rate(),
-        conformal_coverage=coverage_by_class(data.test_labels, sets),
-    )
 
 
 def _fit_calibrated(features: np.ndarray, labels: np.ndarray, settings: FitConfig):

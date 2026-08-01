@@ -191,7 +191,12 @@ def _add_line(subparsers) -> None:
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--cell", default="cell-01")
     parser.add_argument("--cycle", type=float, default=1.0, help="seconds between shots")
-    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="shots to publish, or for --role gate, stop once at least this many are scored",
+    )
     parser.add_argument("--no-audit", action="store_true")
     parser.add_argument("--estimator", default="xgboost")
     parser.add_argument("--seed", type=int, default=settings.seed)

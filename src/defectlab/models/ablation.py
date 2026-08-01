@@ -8,18 +8,64 @@ fusion should hold up as the camera gets worse.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 from ..imaging import Regime
+from .conformal import coverage_by_class
+from .evaluation import Scores, evaluate
 from .features import Modality, build_blocks
-from .pipeline import AblationResult, CellData, FitConfig, run_cell
+from .pipeline import CellData, FitConfig, fit
 
 MODALITIES: tuple[Modality, ...] = (Modality.VISION, Modality.PROCESS, Modality.FUSION)
 REGIMES: tuple[Regime, ...] = (Regime.LAB, Regime.INLINE)
+
+
+@dataclass(frozen=True, slots=True)
+class AblationResult:
+    """One cell of the 3x2: a modality, an imaging regime, and how it scored."""
+
+    modality: Modality
+    regime: Regime
+    estimator: str
+    scores: Scores
+    threshold: float
+    abstention_rate: float
+    conformal_coverage: dict[int, float]
+
+    def as_row(self) -> dict[str, object]:
+        return {
+            "modality": self.modality.value,
+            "regime": self.regime.value,
+            "estimator": self.estimator,
+            "threshold": self.threshold,
+            "abstention_rate": self.abstention_rate,
+            "coverage_defect": self.conformal_coverage[1],
+            "coverage_ok": self.conformal_coverage[0],
+            **asdict(self.scores),
+        }
+
+
+def run_cell(
+    modality: Modality, regime: Regime, data: CellData, config: FitConfig | None = None
+) -> AblationResult:
+    """Fit one cell and score it on the held-out test split."""
+    settings = config or FitConfig()
+    model = fit(data.train_features, data.train_labels, settings)
+    test_scores = model.score(data.test_features)
+    sets = model.conformal.predict_sets(test_scores)
+    return AblationResult(
+        modality=modality,
+        regime=regime,
+        estimator=settings.estimator,
+        scores=evaluate(data.test_labels, test_scores, model.threshold),
+        threshold=model.threshold,
+        abstention_rate=sets.abstention_rate(),
+        conformal_coverage=coverage_by_class(data.test_labels, sets),
+    )
 
 
 @dataclass(frozen=True, slots=True)

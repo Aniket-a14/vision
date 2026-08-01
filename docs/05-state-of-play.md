@@ -33,9 +33,10 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `api` | done — score, prescribe, SSE stream, hash-chained audit | `defectlab serve` |
 | `edge` | done — MQTT line simulator and scoring gate | `defectlab line` |
 | `app/` | done — React operator UI | `npm run dev` in `app/` |
+| `deploy/` | done — compose stack, two images | `docker compose up --build` |
 
-Not started: deploy, offline bundle, report, slides, and the **Power BI `.pbix` report pages**,
-which are the last manual step on a hard rubric requirement.
+Not started: offline bundle, report, slides, and the **Power BI `.pbix` report pages**, which are
+the last manual step on a hard rubric requirement.
 
 ## The results that are settled
 
@@ -205,6 +206,37 @@ not do. It is an attestation, not a verified fact, and the docstring says so.
 
 **Not done: operator identity.** The override records what and why, not by whom. A quality record
 with no signatory is incomplete; say it before an examiner does.
+
+## Deployment
+
+`docker compose up --build` → UI on **:8080**, API on **:8000**. Full write-up in
+`docs/08-deploy.md`. Two things that cost real time to find:
+
+- **`xgboost-cpu`, not `xgboost`.** The Linux wheel pulls `nvidia-nccl-cu12`, 289 MB of CUDA the
+  service never calls. Image **2.01 GB → 1.02 GB**. The whole point of the `serve` extra was to
+  keep torch out; shipping NCCL instead would have been the same mistake twice.
+- **The serving path must not reach OpenCV, and it did.** The first container start crashed with
+  `ModuleNotFoundError: No module named 'cv2'`. `models/__init__` re-exported `run_cell`, which
+  needed `imaging.Regime`, which imports cv2 — so scoring process telemetry pulled in a vision
+  dependency. `AblationResult` and `run_cell` moved to `ablation.py` where they belong, and
+  `models/__init__` no longer re-exports them. **Import `ablation` directly, never via the
+  package init.** No unit test could catch this locally (the dev venv has cv2), so it is pinned
+  by importing each serving module in a subprocess with `sys.modules['cv2'] = None`.
+- **The API and the MQTT gate get separate audit volumes.** The hash chain is **single-writer** —
+  two processes appending to one file each compute `previous` from their own in-memory head, so
+  it would not verify. One log per decision-maker is the honest model anyway.
+
+`postgres` and `redis` are in the `infra` profile and stay down; nothing in the build reads them.
+
+## Verified against a real MQTT broker
+
+Not only the loopback transport:
+
+- 20 telemetry, 20 verdicts, 2 status messages, read by an **independent subscriber**. Verdicts
+  carried `audit_hash`, so the MQTT path audits.
+- Retained status reached a subscriber that connected **after** the run ended.
+- **The last will fired 6.0 s after `kill`** on the publisher. This is the behaviour the loopback
+  cannot test and the reason MQTT is here rather than a second SSE feed.
 
 ## Conventions that are load-bearing
 

@@ -38,6 +38,15 @@ api = [
     "redis>=5.2",
     "paho-mqtt>=2.1",
 ]
+# What the running service actually imports. `ml` carries torch, shap, interpret and mlflow,
+# none of which the process-only serving path touches -- and they are ~2 GB of the image.
+serve = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.52",
+    "paho-mqtt>=2.1",
+    "scikit-learn>=1.9,<2",
+    "xgboost>=3.3,<4",
+]
 viz = ["matplotlib>=3.11", "seaborn>=0.13"]
 
 [dependency-groups]
