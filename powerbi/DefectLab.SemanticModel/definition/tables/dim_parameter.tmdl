@@ -1,42 +1,51 @@
 table dim_parameter
+	lineageTag: cb33ddad-9788-4b81-bd44-488b77dca123
 
 	column parameter
 		dataType: string
+		lineageTag: 579d1786-029c-49be-8ff7-ec420de94129
 		summarizeBy: none
 		sourceColumn: parameter
 
 	column unit
 		dataType: string
+		lineageTag: 5df9b1c1-ce04-4546-9e85-3d05ded0cceb
 		summarizeBy: none
 		sourceColumn: unit
 
 	column nominal
 		dataType: double
+		lineageTag: 088e314e-1a9b-4f6e-a672-e8db43c2bfec
 		summarizeBy: none
 		sourceColumn: nominal
 
 	column lower
 		dataType: double
+		lineageTag: 5227fddd-950a-4d81-b4df-9c7ca64d1f8b
 		summarizeBy: none
 		sourceColumn: lower
 
 	column upper
 		dataType: double
+		lineageTag: 546714a6-00c0-4fc3-944c-15507815ed32
 		summarizeBy: none
 		sourceColumn: upper
 
 	column actionability
 		dataType: string
+		lineageTag: 297bc39e-6483-40b5-9bfe-39f0bfbc7906
 		summarizeBy: none
 		sourceColumn: actionability
 
 	column group
 		dataType: string
+		lineageTag: 4c2730af-bdbf-4a41-88f6-5bf422f445dd
 		summarizeBy: none
 		sourceColumn: group
 
 	column is_lever
 		dataType: int64
+		lineageTag: 96f1bafa-4c37-4ca7-abe6-751377ec7c5e
 		summarizeBy: none
 		sourceColumn: is_lever
 

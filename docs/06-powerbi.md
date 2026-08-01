@@ -26,7 +26,9 @@ The whole semantic model is generated from `export/schema.py`, so it cannot drif
 - **5 relationships**, each checked by a test against the export contract.
 - **`dim_date`** marked for time intelligence, joined via a `date` calculated column on
   `fact_production` — a timestamp will not join to a date table at day grain.
-- **15 DAX measures** with format strings, listed in `powerbi.MEASURES`.
+- **15 DAX measures** with format strings, listed in `powerbi.MEASURES`. They sit on a table
+  called **`Metrics`**, not `Measures`: that name is the MDX measures dimension and the tabular
+  schema reserves it, so Desktop refuses a model that uses it.
 
 The report has four named but empty pages. Visual JSON written blind is how a PBIP ends up
 refusing to open, and laying visuals out is the one part Desktop is genuinely good at.

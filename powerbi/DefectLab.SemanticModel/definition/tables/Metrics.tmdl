@@ -1,0 +1,75 @@
+table Metrics
+	lineageTag: d3dfdc18-08e1-4c26-85fe-6c75d648431a
+
+	measure Shots = COUNTROWS(fact_shot)
+		formatString: #,0
+		lineageTag: 8e03560a-20bd-4ea1-8d1c-709264661b51
+
+	measure Defects = CALCULATE(COUNTROWS(fact_shot), fact_shot[label] = 1)
+		formatString: #,0
+		lineageTag: f4bda0ae-0e2e-4610-9530-49f21e7cb127
+
+	measure Flagged = CALCULATE(COUNTROWS(fact_shot), fact_shot[flagged] = 1)
+		formatString: #,0
+		lineageTag: 5305852b-1f3a-4379-b155-da077013d168
+
+	measure Escapes = CALCULATE(COUNTROWS(fact_shot), fact_shot[outcome] = "false_negative")
+		formatString: #,0
+		lineageTag: 494b67de-e662-463d-b277-799ce67baf6c
+
+	measure Overkills = CALCULATE(COUNTROWS(fact_shot), fact_shot[outcome] = "false_positive")
+		formatString: #,0
+		lineageTag: 2a70f530-8f58-4b47-9f38-6106a72cc521
+
+	measure 'Escape Rate' = DIVIDE([Escapes], [Defects])
+		formatString: 0.0%
+		lineageTag: 5012b08d-d914-4bef-8d4f-08570f9fd381
+
+	measure 'Overkill Rate' = DIVIDE([Overkills], [Shots] - [Defects])
+		formatString: 0.0%
+		lineageTag: 6facb390-84a2-4282-bc0e-8a0892ab0814
+
+	measure 'Alert Rate' = DIVIDE([Flagged], [Shots])
+		formatString: 0.0%
+		lineageTag: dd576ff0-89e0-48eb-acb2-6025314336c9
+
+	measure 'Selected Threshold' = SELECTEDVALUE(fact_cost_curve[threshold])
+		formatString: 0.000
+		lineageTag: 4821bca8-f066-49db-870a-f12272280bdb
+
+	measure 'Cost per Shot' = AVERAGE(fact_cost_curve[per_shot])
+		formatString: #,0.00
+		lineageTag: b6bfdb42-4049-4d1d-9d04-712f07577c5e
+
+	measure 'COPQ per 1000 Shots' = [Cost per Shot] * 1000
+		formatString: #,0
+		lineageTag: 2bf5f740-38d7-4806-9dec-c4108343b5d2
+
+	measure 'Production Shots' = COUNTROWS(fact_production)
+		formatString: #,0
+		lineageTag: 86c18cb6-3423-48bc-8957-4cbedef4d4f4
+
+	measure 'SPC Signals' = CALCULATE(COUNTROWS(fact_spc), fact_spc[signal] = 1)
+		formatString: #,0
+		lineageTag: 1d0c9ac9-46be-4e04-8504-ab7bdde58ee3
+
+	measure 'SPC Signal Rate' = DIVIDE([SPC Signals], COUNTROWS(fact_spc))
+		formatString: 0.0%
+		lineageTag: 9f5059de-f5cf-4263-9267-0e286f35394e
+
+	measure 'Alarms per Hour' = DIVIDE([SPC Signals], DIVIDE([Production Shots], 60))
+		formatString: 0.0
+		lineageTag: ceffdc30-bfff-42a9-9029-d31602d4fc68
+
+	column _placeholder
+		dataType: string
+		isHidden
+		lineageTag: 541c6b8c-390b-48a4-a831-fc1de332a607
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [_placeholder]
+
+	partition Metrics = calculated
+		mode: import
+		source = ROW("_placeholder", BLANK())
+

@@ -1,3 +1,5 @@
-expression ExportFolder = "data\exports" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
-	lineageTag: export-folder
-	queryGroup: Parameters
+expression ExportFolder = "C:\3rd_Year\vision\data\exports" meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]
+	lineageTag: 26e6c0d5-160c-4c14-85c0-595d1fbd868d
+
+	annotation PBI_ResultType = Text
+

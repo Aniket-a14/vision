@@ -1,47 +1,57 @@
 table fact_shot
+	lineageTag: 205257ca-68c8-4e57-8792-38e4b4b07312
 
 	column shot_id
 		dataType: int64
+		lineageTag: 310008c7-2bad-46a6-883e-7eaca71ec99d
 		summarizeBy: none
 		sourceColumn: shot_id
 
 	column lot_id
 		dataType: int64
+		lineageTag: 4c427b23-b5fd-49cf-abb3-49bcfbbc5610
 		summarizeBy: none
 		sourceColumn: lot_id
 
 	column die_id
 		dataType: int64
+		lineageTag: 85bde361-4e3f-46b9-9d28-c58f39cb5554
 		summarizeBy: none
 		sourceColumn: die_id
 
 	column shift_id
 		dataType: int64
+		lineageTag: 5a8d83b9-8434-4a0d-a99c-4ecf134534a0
 		summarizeBy: none
 		sourceColumn: shift_id
 
 	column risk
 		dataType: double
+		lineageTag: 5f46f079-8733-49a1-831a-88e3ce3a09cb
 		summarizeBy: none
 		sourceColumn: risk
 
 	column label
 		dataType: int64
+		lineageTag: d5941408-dc92-43c3-ae9c-37f48c620d78
 		summarizeBy: none
 		sourceColumn: label
 
 	column flagged
 		dataType: int64
+		lineageTag: 440a3517-b806-477e-b92e-c81933e4dc3a
 		summarizeBy: none
 		sourceColumn: flagged
 
 	column outcome
 		dataType: string
+		lineageTag: 742cc3dc-0edd-4f38-985b-60a512aee1a0
 		summarizeBy: none
 		sourceColumn: outcome
 
 	column dominant_mechanism
 		dataType: string
+		lineageTag: 58fa855f-38ea-4ec3-b0a3-0da45e98292e
 		summarizeBy: none
 		sourceColumn: dominant_mechanism
 

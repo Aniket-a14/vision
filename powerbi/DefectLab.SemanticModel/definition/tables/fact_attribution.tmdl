@@ -1,17 +1,21 @@
 table fact_attribution
+	lineageTag: e027452d-fe69-4ff7-8446-834dd29f7b3f
 
 	column shot_id
 		dataType: int64
+		lineageTag: 69cbb47e-5da7-4596-a17b-4b0315e9b89b
 		summarizeBy: none
 		sourceColumn: shot_id
 
 	column group
 		dataType: string
+		lineageTag: a48d1415-7b3e-4a92-a119-8723ea5428ee
 		summarizeBy: none
 		sourceColumn: group
 
 	column contribution
 		dataType: double
+		lineageTag: fb5abd23-2a3f-4b23-98b5-5f1a90e513c6
 		summarizeBy: none
 		sourceColumn: contribution
 

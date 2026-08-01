@@ -8,11 +8,12 @@ import pytest
 
 from defectlab.export import TABLES, spec, write_project
 from defectlab.export.powerbi import (
+    MEASURE_TABLE,
     MEASURES,
     PAGES,
-    PBIP_SCHEMA_PATTERN,
     PROJECT,
     RELATIONSHIPS,
+    SCHEMA_PATTERNS,
     logical_id,
 )
 
@@ -38,22 +39,46 @@ def test_the_logical_id_is_stable_across_regeneration():
     assert logical_id("Report") != logical_id("SemanticModel")
 
 
-def test_the_pbip_schema_matches_the_pattern_desktop_enforces(project):
-    """Desktop pattern-matches this URL and refuses the project on a mismatch. The pattern is
-    quoted from its own error message, so this test is the spec rather than a guess about it."""
-    root, _ = project
-    schema = json.loads((root / f"{PROJECT}.pbip").read_text())["$schema"]
-    assert re.match(PBIP_SCHEMA_PATTERN, schema), schema
-
-
 @pytest.mark.parametrize(
-    "path", ["{p}.Report/definition.pbir", "{p}.SemanticModel/definition.pbism"]
+    ("kind", "path"),
+    [
+        ("pbip", "{p}.pbip"),
+        ("pbism", "{p}.SemanticModel/definition.pbism"),
+        ("pbir", "{p}.Report/definition.pbir"),
+    ],
 )
-def test_no_schema_is_guessed_where_the_pattern_is_unknown(project, path):
-    """`$schema` is optional but validated when present, so writing one we cannot verify is
-    strictly worse than omitting it. Adding two on a guess cost a failed open."""
+def test_every_schema_matches_the_pattern_its_own_schema_declares(project, kind, path):
+    """Desktop refuses the project on a mismatch, and a guessed URL cost one failed open. The
+    patterns are copied from the published schemas, so this test is the spec, not a guess."""
     root, _ = project
-    assert "$schema" not in json.loads((root / path.format(p=PROJECT)).read_text())
+    schema = json.loads((root / path.format(p=PROJECT)).read_text())["$schema"]
+    assert re.match(SCHEMA_PATTERNS[kind], schema), schema
+
+
+def test_the_pbism_version_permits_tmdl(project):
+    """Version 1.0 restricts the model to TMSL in a model.bim we do not write, which Desktop
+    reports as a missing artifact rather than as the version problem it is."""
+    root, _ = project
+    model = root / f"{PROJECT}.SemanticModel"
+    version = json.loads((model / "definition.pbism").read_text())["version"]
+    assert float(version) >= 4.0, version
+    assert (model / "definition" / "model.tmdl").exists()
+    assert not (model / "model.bim").exists()
+
+
+def test_the_measure_table_avoids_the_reserved_name(project):
+    """`Measures` is the MDX measures dimension; the tabular schema reserves it and Desktop
+    refuses the model outright rather than renaming it."""
+    _, written = project
+    assert MEASURE_TABLE != "Measures"
+    assert written["measures"].stem == MEASURE_TABLE
+    assert f"table {MEASURE_TABLE}" in written["measures"].read_text()
+
+
+def test_the_model_refs_nothing_it_does_not_write(project):
+    """A ref to a missing file is ignored, but the cultures folder was never generated at all."""
+    _, written = project
+    assert "ref culture" not in written["model"].read_text()
 
 
 def test_every_contracted_table_becomes_a_tmdl_file(project):
@@ -74,14 +99,31 @@ def test_each_tmdl_declares_every_contracted_column(project):
 def test_the_project_file_and_model_are_valid_json_where_they_should_be(project):
     root, written = project
     assert json.loads(written["pbip"].read_text())["version"] == "1.0"
-    assert json.loads(written["report"].read_text())["sections"]
+    assert json.loads(written["report"].read_text())["themeCollection"]["baseTheme"]
     assert (root / f"{PROJECT}.SemanticModel" / "definition.pbism").exists()
 
 
-def test_the_report_names_every_page(project):
+def test_the_report_declares_a_theme(project):
+    """The report schema requires `themeCollection`, and a report without one crashed the
+    renderer reading `customTheme` off it rather than falling back to a default."""
     _, written = project
-    titles = [s["displayName"] for s in json.loads(written["report"].read_text())["sections"]]
+    assert "themeCollection" in json.loads(written["report"].read_text())
+
+
+def test_the_report_names_every_page(project):
+    """One folder per page under \\definition\\pages, ordered by pages.json."""
+    _, written = project
+    order = json.loads(written["pages"].read_text())["pageOrder"]
+    titles = [json.loads(written[f"page.{name}"].read_text())["displayName"] for name in order]
     assert titles == list(PAGES)
+
+
+@pytest.mark.parametrize("title", PAGES)
+def test_every_page_name_is_a_legal_folder_name(project, title):
+    """Desktop silently ignores a page folder whose name is not word characters or hyphens."""
+    _, written = project
+    name = json.loads(written[f"page.{title.lower().replace(' ', '-')}"].read_text())["name"]
+    assert re.fullmatch(r"[\w-]+", name), name
 
 
 def test_the_report_points_at_the_semantic_model(project):

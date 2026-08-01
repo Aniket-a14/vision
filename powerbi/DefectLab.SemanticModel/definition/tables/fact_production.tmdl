@@ -1,44 +1,53 @@
 table fact_production
+	lineageTag: 1ece325a-0ba8-48cf-9f9c-63e84d7ca31d
 
 	column shot_id
 		dataType: int64
+		lineageTag: e78c0a41-e083-404c-80e3-093c3900a120
 		summarizeBy: none
 		sourceColumn: shot_id
 
 	column timestamp
 		dataType: dateTime
+		formatString: General Date
+		lineageTag: 5367c658-8dc1-47a1-8f1c-fc5be812af5b
 		summarizeBy: none
 		sourceColumn: timestamp
-		formatString: General Date
 
 	column lot_id
 		dataType: int64
+		lineageTag: 6b2506f2-8ab1-4350-93dc-d5fc90929137
 		summarizeBy: none
 		sourceColumn: lot_id
 
 	column die_id
 		dataType: int64
+		lineageTag: 563136bf-1c16-4ed4-b2fc-d0203f820198
 		summarizeBy: none
 		sourceColumn: die_id
 
 	column shift_id
 		dataType: int64
+		lineageTag: 21232159-f447-46c0-91fe-6b29c727acf7
 		summarizeBy: none
 		sourceColumn: shift_id
 
 	column risk
 		dataType: double
+		lineageTag: fbb1c78e-2c25-46a6-a2a7-c4484e0f747e
 		summarizeBy: none
 		sourceColumn: risk
 
 	column label
 		dataType: int64
+		lineageTag: 1bf09edd-7077-43b3-81af-5d9afb356508
 		summarizeBy: none
 		sourceColumn: label
 
 	column date = DATEVALUE(fact_production[timestamp])
 		dataType: dateTime
 		formatString: Short Date
+		lineageTag: 6494e542-0b46-443a-a345-8f94c35902aa
 		summarizeBy: none
 
 	partition fact_production = m

@@ -1,33 +1,40 @@
 table dim_date
+	lineageTag: 29f4c024-eebb-4465-aeec-f3b8f84946d4
 
 	column date
 		dataType: dateTime
+		formatString: General Date
+		lineageTag: 4d5dd8b1-bc6c-44da-997f-ca486b1814d4
 		summarizeBy: none
 		sourceColumn: date
-		formatString: General Date
 
 	column year
 		dataType: int64
+		lineageTag: 5a68c5f0-be55-4c7e-8c72-a2b6ecb0e8f6
 		summarizeBy: none
 		sourceColumn: year
 
 	column month
 		dataType: int64
+		lineageTag: cb629aac-d811-4da6-b7ae-886454fcea0d
 		summarizeBy: none
 		sourceColumn: month
 
 	column day
 		dataType: int64
+		lineageTag: 875990c9-4335-4886-ace0-48cd0f34f5d5
 		summarizeBy: none
 		sourceColumn: day
 
 	column weekday
 		dataType: string
+		lineageTag: b644546a-a0b5-46d2-b695-60796487b631
 		summarizeBy: none
 		sourceColumn: weekday
 
 	column shift_label
 		dataType: string
+		lineageTag: ec29454b-84f3-4b79-88a3-2a5c54624e08
 		summarizeBy: none
 		sourceColumn: shift_label
 

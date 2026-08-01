@@ -1,27 +1,33 @@
 table fact_cost_curve
+	lineageTag: 535411f7-57d0-4bd6-a11a-065c53f13877
 
 	column threshold
 		dataType: double
+		lineageTag: 1bc5a83e-79d0-4e11-badf-a07fef5b4bc6
 		summarizeBy: none
 		sourceColumn: threshold
 
 	column per_shot
 		dataType: double
+		lineageTag: 3a2d0b64-8ae0-4842-b707-e45e62bbd7e3
 		summarizeBy: none
 		sourceColumn: per_shot
 
 	column escape_rate
 		dataType: double
+		lineageTag: bb7dbdda-b289-4eed-8996-ef60ec3447e5
 		summarizeBy: none
 		sourceColumn: escape_rate
 
 	column overkill_rate
 		dataType: double
+		lineageTag: 11e4f928-b459-41dd-8a99-e5a38ee5da8f
 		summarizeBy: none
 		sourceColumn: overkill_rate
 
 	column alert_rate
 		dataType: double
+		lineageTag: 26197503-51ac-40cb-878f-e8be339c834e
 		summarizeBy: none
 		sourceColumn: alert_rate
 

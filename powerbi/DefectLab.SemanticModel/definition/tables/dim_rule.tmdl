@@ -1,17 +1,21 @@
 table dim_rule
+	lineageTag: 95a6ebda-aeb1-4270-a05e-e5a82172160f
 
 	column rule
 		dataType: string
+		lineageTag: 4a7ab5cb-4b3f-4ab6-b3df-e1223c96863f
 		summarizeBy: none
 		sourceColumn: rule
 
 	column number
 		dataType: int64
+		lineageTag: 6d0b1865-80ab-4298-adae-ed2c8e0c1d7a
 		summarizeBy: none
 		sourceColumn: number
 
 	column description
 		dataType: string
+		lineageTag: a8972684-d10d-4c51-a11e-9ef1be3fc179
 		summarizeBy: none
 		sourceColumn: description
 

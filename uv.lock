@@ -431,6 +431,13 @@ ml = [
     { name = "torchvision" },
     { name = "xgboost" },
 ]
+serve = [
+    { name = "fastapi" },
+    { name = "paho-mqtt" },
+    { name = "scikit-learn" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "xgboost" },
+]
 viz = [
     { name = "matplotlib" },
     { name = "seaborn" },
@@ -448,6 +455,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.141" },
+    { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.141" },
     { name = "interpret", marker = "extra == 'ml'", specifier = ">=0.7" },
     { name = "mapie", marker = "extra == 'ml'", specifier = ">=1.4" },
     { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.11" },
@@ -456,6 +464,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.1,<2.5" },
     { name = "opencv-python-headless", marker = "extra == 'ml'", specifier = ">=5.0" },
     { name = "paho-mqtt", marker = "extra == 'api'", specifier = ">=2.1" },
+    { name = "paho-mqtt", marker = "extra == 'serve'", specifier = ">=2.1" },
     { name = "pandas", specifier = ">=2.2,<3" },
     { name = "pandera", specifier = ">=0.32" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'api'", specifier = ">=3.3" },
@@ -464,6 +473,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.14" },
     { name = "redis", marker = "extra == 'api'", specifier = ">=5.2" },
     { name = "scikit-learn", marker = "extra == 'ml'", specifier = ">=1.9,<2" },
+    { name = "scikit-learn", marker = "extra == 'serve'", specifier = ">=1.9,<2" },
     { name = "scipy", specifier = ">=1.18,<2" },
     { name = "seaborn", marker = "extra == 'viz'", specifier = ">=0.13" },
     { name = "shap", marker = "extra == 'ml'", specifier = ">=0.52" },
@@ -472,9 +482,11 @@ requires-dist = [
     { name = "torch", marker = "extra == 'ml'", specifier = ">=2.13", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", marker = "extra == 'ml'", specifier = ">=0.28", index = "https://download.pytorch.org/whl/cpu" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.52" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'serve'", specifier = ">=0.52" },
     { name = "xgboost", marker = "extra == 'ml'", specifier = ">=3.3,<4" },
+    { name = "xgboost", marker = "extra == 'serve'", specifier = ">=3.3,<4" },
 ]
-provides-extras = ["ml", "api", "viz"]
+provides-extras = ["ml", "api", "serve", "viz"]
 
 [package.metadata.requires-dev]
 dev = [

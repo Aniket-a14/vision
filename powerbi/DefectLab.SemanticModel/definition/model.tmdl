@@ -3,6 +3,13 @@ model Model
 	defaultPowerBIDataSourceVersion: powerBI_V3
 	discourageImplicitMeasures
 	sourceQueryCulture: en-GB
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation PBI_QueryOrder = ["fact_shot","fact_production","fact_attribution","fact_spc","fact_cost_curve","dim_parameter","dim_group","dim_rule","dim_date","ExportFolder"]
+
+annotation PBI_ProTooling = ["DevMode"]
 
 ref table fact_shot
 ref table fact_production
@@ -13,6 +20,5 @@ ref table dim_parameter
 ref table dim_group
 ref table dim_rule
 ref table dim_date
-ref table Measures
+ref table Metrics
 
-ref cultures en-GB

@@ -24,20 +24,58 @@ COMPATIBILITY_LEVEL = 1567
 # Fixed so `logical_id` is reproducible; any constant UUID would do.
 LOGICAL_ID_NAMESPACE = uuid.UUID("6f8a1d2c-3b4e-5a6f-8c9d-0e1f2a3b4c5d")
 
-# Quoted verbatim from the Power BI Desktop error that rejected a guessed URL. `$schema` is
-# optional everywhere in a PBIP, but any that is present is pattern-matched -- so a wrong one is
-# worse than none. It is written only where the pattern is known, which is here.
-PBIP_SCHEMA_PATTERN = (
-    r"^https://developer\.microsoft\.com/json-schemas/fabric/pbip/"
-    r"pbipProperties/1\.[0-9]+\.[0-9]+/schema\.json$"
-)
-PBIP_SCHEMA = (
-    "https://developer.microsoft.com/json-schemas/fabric/pbip/pbipProperties/1.0.0/schema.json"
-)
+# `definition.pbism` version 1.0 means the model must be TMSL in a model.bim; only 4.0 and above
+# permit the TMDL \definition folder we write. Desktop reads this before the folder, so the wrong
+# number here surfaces as "Missing required artifact 'model.bim'".
+PBISM_VERSION = "4.0"
+# 4.0 is the lowest that permits the PBIR \definition folder. The alternative, PBIR-Legacy, is a
+# single report.json that Microsoft documents as unsupported for external editing -- writing one
+# by hand produced a report with no theme, which Desktop crashed on rather than defaulting.
+PBIR_VERSION = "4.0"
+# The report definition's own version, separate from the .pbir format version above. It decides
+# which files Desktop loads, and 1.0.0 loaded none of the pages -- the renderer then failed
+# reading `visualContainers` off the page it had not got.
+REPORT_DEFINITION_VERSION = "2.0.0"
 
-# The one .platform URL Desktop accepted; it failed on logicalId, never on this.
-PLATFORM_SCHEMA = "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json"
+_SCHEMA_HOST = "https://developer.microsoft.com/json-schemas/fabric"
+_PBIR = f"{_SCHEMA_HOST}/item/report/definition"
+# The PBIR versions are not interchangeable and not independent of each other. This set is copied
+# from a report Power BI Desktop itself wrote, rather than picked from what the schema repo offers.
+SCHEMAS = {
+    "pbip": f"{_SCHEMA_HOST}/pbip/pbipProperties/1.0.0/schema.json",
+    "pbism": f"{_SCHEMA_HOST}/item/semanticModel/definitionProperties/1.0.0/schema.json",
+    "pbir": f"{_SCHEMA_HOST}/item/report/definitionProperties/2.0.0/schema.json",
+    "platform": f"{_SCHEMA_HOST}/gitIntegration/platformProperties/2.0.0/schema.json",
+    "version": f"{_PBIR}/versionMetadata/1.0.0/schema.json",
+    "report": f"{_PBIR}/report/3.1.0/schema.json",
+    "pages": f"{_PBIR}/pagesMetadata/1.0.0/schema.json",
+    "page": f"{_PBIR}/page/2.0.0/schema.json",
+}
+
+# Shipped with Desktop, so the report only names it. `themeCollection` is required by the report
+# schema, and its absence is what the renderer failed to read `customTheme` off.
+BASE_THEME = {
+    "name": "CY25SU12",
+    "reportVersionAtImport": {"visual": "2.5.0", "report": "3.1.0", "page": "2.3.0"},
+    "type": "SharedResources",
+}
+
+# Copied from the published schemas, not inferred from the URLs. Each definitionProperties schema
+# marks `$schema` required and pattern-matches it, and Desktop enforces the pattern on open -- so a
+# guessed URL is worse than none, which cost one failed open.
+SCHEMA_PATTERNS = {
+    "pbip": r"^https://developer\.microsoft\.com/json-schemas/fabric"
+    r"/pbip/pbipProperties/1\.[0-9]+\.[0-9]+/schema\.json$",
+    "pbism": r"^https://developer\.microsoft\.com/json-schemas/fabric"
+    r"/item/semanticModel/definitionProperties/1\.[0-9]+\.[0-9]+/schema\.json$",
+    "pbir": r"^https://developer\.microsoft\.com/json-schemas/fabric"
+    r"/item/report/definitionProperties/2\.[0-9]+\.[0-9]+/schema\.json$",
+}
 PAGES = ("Line overview", "Why this part", "Cost of quality", "Process control")
+
+# Not "Measures": that is the MDX measures dimension and the tabular schema reserves it, which
+# Desktop reports as an unsupported table name.
+MEASURE_TABLE = "Metrics"
 
 INTEGER_COLUMNS = frozenset(
     {
@@ -98,10 +136,10 @@ def write_project(destination: Path, exports: Path) -> dict[str, Path]:
         "model": _write(model / "definition" / "model.tmdl", _model()),
         "expressions": _write(model / "definition" / "expressions.tmdl", _expressions(exports)),
         "relationships": _write(model / "definition" / "relationships.tmdl", _relationships()),
-        "measures": _write(model / "definition" / "tables" / "Measures.tmdl", _measures()),
+        "measures": _write(model / "definition" / "tables" / f"{MEASURE_TABLE}.tmdl", _measures()),
         "report_platform": _write(report / ".platform", _platform("Report")),
         "report_definition": _write(report / "definition.pbir", _pbir()),
-        "report": _write(report / "report.json", _report()),
+        **_write_report(report / "definition"),
     }
     for name in TABLES:
         path = model / "definition" / "tables" / f"{name}.tmdl"
@@ -200,7 +238,7 @@ def _m_type(column: str) -> str:
 
 
 def _measures() -> str:
-    lines = ["table Measures", ""]
+    lines = [f"table {MEASURE_TABLE}", ""]
     for name, expression, fmt in MEASURES:
         lines += [
             f"\tmeasure '{name}' = {expression}",
@@ -208,13 +246,16 @@ def _measures() -> str:
             "",
         ]
     lines += [
+        # A calculated table's columns come from its DAX, so the source column is a bracketed
+        # reference into that result rather than a name in an external source.
         "\tcolumn _placeholder",
         "\t\tisHidden",
         "\t\tdataType: string",
+        "\t\tisNameInferred",
         "\t\tsummarizeBy: none",
-        "\t\tsourceColumn: _placeholder",
+        "\t\tsourceColumn: [_placeholder]",
         "",
-        "\tpartition Measures = calculated",
+        f"\tpartition {MEASURE_TABLE} = calculated",
         "\t\tmode: import",
         '\t\tsource = ROW("_placeholder", BLANK())',
         "",
@@ -235,7 +276,9 @@ def _relationships() -> str:
 
 
 def _model() -> str:
-    refs = "\n".join(f"ref table {name}" for name in [*TABLES, "Measures"])
+    """`ref` only fixes collection order, so there is one per table file and none for cultures,
+    which we do not generate."""
+    refs = "\n".join(f"ref table {name}" for name in [*TABLES, MEASURE_TABLE])
     return (
         "model Model\n"
         "\tculture: en-GB\n"
@@ -244,7 +287,6 @@ def _model() -> str:
         "\tsourceQueryCulture: en-GB\n"
         "\n"
         f"{refs}\n"
-        "\nref cultures en-GB\n"
     )
 
 
@@ -253,24 +295,24 @@ def _expressions(exports: Path) -> str:
     return (
         f'expression ExportFolder = "{exports.as_posix().replace("/", chr(92))}" meta '
         '[IsParameterQuery=true, Type="Text", IsParameterQueryRequired=true]\n'
-        "\tlineageTag: export-folder\n"
-        "\tqueryGroup: Parameters\n"
     )
 
 
 def _database() -> str:
-    return f"database\n\tcompatibilityLevel: {COMPATIBILITY_LEVEL}\n"
+    """Named, because every TMDL object is a type followed by a name."""
+    return f"database {PROJECT}\n\tcompatibilityLevel: {COMPATIBILITY_LEVEL}\n"
 
 
 def _pbism() -> str:
-    """No `$schema`. It is optional, and Desktop validates any it finds against a fixed pattern,
-    so a guessed URL is strictly worse than none -- which cost one failed open on the .pbip."""
-    return json.dumps({"version": "1.0", "settings": {}}, indent=2) + "\n"
+    """`version` is the format gate, not decoration: it decides whether Desktop looks for TMDL."""
+    payload = {"$schema": SCHEMAS["pbism"], "version": PBISM_VERSION, "settings": {}}
+    return json.dumps(payload, indent=2) + "\n"
 
 
 def _pbir() -> str:
     payload = {
-        "version": "1.0",
+        "$schema": SCHEMAS["pbir"],
+        "version": PBIR_VERSION,
         "datasetReference": {"byPath": {"path": f"../{PROJECT}.SemanticModel"}},
     }
     return json.dumps(payload, indent=2) + "\n"
@@ -287,7 +329,7 @@ def logical_id(kind: str) -> str:
 
 def _platform(kind: str) -> str:
     payload = {
-        "$schema": PLATFORM_SCHEMA,
+        "$schema": SCHEMAS["platform"],
         "metadata": {"type": kind, "displayName": PROJECT},
         "config": {"version": "2.0", "logicalId": logical_id(kind)},
     }
@@ -296,9 +338,9 @@ def _platform(kind: str) -> str:
 
 def _pbip() -> str:
     """The .pbip shortcut is not an item definition, so its schema lives under a different path
-    than the per-item ones. `PBIP_SCHEMA_PATTERN` is the regex Desktop itself reports."""
+    than the per-item ones -- under fabric/pbip rather than fabric/item."""
     payload = {
-        "$schema": PBIP_SCHEMA,
+        "$schema": SCHEMAS["pbip"],
         "version": "1.0",
         "artifacts": [{"report": {"path": f"{PROJECT}.Report"}}],
         "settings": {"enableAutoRecovery": True},
@@ -306,25 +348,49 @@ def _pbip() -> str:
     return json.dumps(payload, indent=2) + "\n"
 
 
+def _write_report(definition: Path) -> dict[str, Path]:
+    """PBIR: one file per page, each with a published schema. The single-file PBIR-Legacy
+    alternative is documented as unsupported for external editing, and behaved like it."""
+    written = {
+        "report_version": _write(definition / "version.json", _version()),
+        "report": _write(definition / "report.json", _report()),
+        "pages": _write(definition / "pages" / "pages.json", _pages()),
+    }
+    for title in PAGES:
+        name = _page_name(title)
+        written[f"page.{name}"] = _write(definition / "pages" / name / "page.json", _page(title))
+    return written
+
+
+def _page_name(title: str) -> str:
+    """Page folder names may hold only word characters and hyphens."""
+    return title.lower().replace(" ", "-")
+
+
+def _version() -> str:
+    payload = {"$schema": SCHEMAS["version"], "version": REPORT_DEFINITION_VERSION}
+    return json.dumps(payload, indent=2) + "\n"
+
+
 def _report() -> str:
-    """Named but empty pages. Visual JSON written blind is how a PBIP fails to open."""
-    sections = [
-        {
-            "name": f"page{index}",
-            "displayName": title,
-            "ordinal": index,
-            "visualContainers": [],
-            "config": "{}",
-            "width": 1280,
-            "height": 720,
-            "displayOption": 1,
-        }
-        for index, title in enumerate(PAGES)
-    ]
+    payload = {"$schema": SCHEMAS["report"], "themeCollection": {"baseTheme": BASE_THEME}}
+    return json.dumps(payload, indent=2) + "\n"
+
+
+def _pages() -> str:
+    order = [_page_name(title) for title in PAGES]
+    payload = {"$schema": SCHEMAS["pages"], "pageOrder": order, "activePageName": order[0]}
+    return json.dumps(payload, indent=2) + "\n"
+
+
+def _page(title: str) -> str:
+    """Named but empty. Laying visuals out is the part Desktop is actually good at."""
     payload = {
-        "config": json.dumps({"version": "5.43", "activeSectionIndex": 0}),
-        "layoutOptimization": 0,
-        "resourcePackages": [],
-        "sections": sections,
+        "$schema": SCHEMAS["page"],
+        "name": _page_name(title),
+        "displayName": title,
+        "displayOption": "FitToPage",
+        "width": 1280,
+        "height": 720,
     }
     return json.dumps(payload, indent=2) + "\n"

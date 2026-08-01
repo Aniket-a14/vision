@@ -1,0 +1,10 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/pagesMetadata/1.0.0/schema.json",
+  "pageOrder": [
+    "line-overview",
+    "why-this-part",
+    "cost-of-quality",
+    "process-control"
+  ],
+  "activePageName": "line-overview"
+}

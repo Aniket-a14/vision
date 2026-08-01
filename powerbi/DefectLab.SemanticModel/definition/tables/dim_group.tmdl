@@ -1,12 +1,15 @@
 table dim_group
+	lineageTag: a3333ec5-7a67-4476-bdf9-80a530e9e74f
 
 	column group
 		dataType: string
+		lineageTag: 18d744c1-5259-47c0-a3ff-aa27741ac3bf
 		summarizeBy: none
 		sourceColumn: group
 
 	column description
 		dataType: string
+		lineageTag: 98b8307d-5d40-477b-b2dd-e31bf4d1130a
 		summarizeBy: none
 		sourceColumn: description
 

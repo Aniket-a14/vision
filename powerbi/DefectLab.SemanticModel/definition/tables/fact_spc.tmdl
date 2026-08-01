@@ -1,42 +1,51 @@
 table fact_spc
+	lineageTag: 7da8f47e-5d54-4d62-8b2d-29f95c4e832d
 
 	column shot_id
 		dataType: int64
+		lineageTag: b7168fad-e2a1-43cf-aecf-58ea88eb025a
 		summarizeBy: none
 		sourceColumn: shot_id
 
 	column chart
 		dataType: string
+		lineageTag: e07c935e-a530-43db-925c-ebe65710d4cb
 		summarizeBy: none
 		sourceColumn: chart
 
 	column value
 		dataType: double
+		lineageTag: 309adcdd-af8a-4a58-b7b9-4aba9000d2be
 		summarizeBy: none
 		sourceColumn: value
 
 	column centre
 		dataType: double
+		lineageTag: 7bfc7209-e062-406c-8c32-28902d7244d4
 		summarizeBy: none
 		sourceColumn: centre
 
 	column lower
 		dataType: double
+		lineageTag: 7b1b858d-55d3-4b0b-92c4-005e873a431d
 		summarizeBy: none
 		sourceColumn: lower
 
 	column upper
 		dataType: double
+		lineageTag: 4192ea40-08ab-4c3b-9acc-129e6bed93fa
 		summarizeBy: none
 		sourceColumn: upper
 
 	column signal
 		dataType: int64
+		lineageTag: 8db38ec2-c383-4a15-be5b-89e33d0cc277
 		summarizeBy: none
 		sourceColumn: signal
 
 	column rule
 		dataType: string
+		lineageTag: 3cc344e9-1412-4016-82e7-2c6d1e462d39
 		summarizeBy: none
 		sourceColumn: rule
 
