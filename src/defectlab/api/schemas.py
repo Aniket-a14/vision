@@ -7,9 +7,10 @@ envelope will still return a confident number, and that number is worthless.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from ..twin import FEATURES, spec
+from .reasons import Reason
 
 
 class ShotRequest(BaseModel):
@@ -63,6 +64,47 @@ class PrescribeResponse(BaseModel):
     risk_after: float
     margin_gain: float
     stability: float = Field(..., description="share of perturbed simulators that still improve")
+
+
+class PredicateResponse(BaseModel):
+    parameter: str
+    lower: float
+    upper: float
+
+
+class ExplainResponse(BaseModel):
+    rule: str
+    prediction: int
+    precision: float = Field(..., description="how often the rule fixes the gate's verdict")
+    coverage: float = Field(..., description="share of the line the rule applies to")
+    predicates: list[PredicateResponse]
+
+
+class OverrideRequest(BaseModel):
+    """An operator disagreeing with the gate, on the record.
+
+    `explanation_shown` is what the screen displayed when the decision was taken. It has to come
+    from the client because only the client knows what was rendered, and re-deriving it later
+    would record the explanation the model gives *now* -- which is the one thing an audit of a
+    past decision must not do. It is therefore an attestation, not a verified fact.
+    """
+
+    audit_hash: str = Field(..., description="hash of the score being overridden")
+    defective: bool = Field(..., description="the operator's verdict, not the model's")
+    reason: Reason
+    note: str = ""
+    explanation_shown: str = Field("", description="the rule on screen when the call was made")
+
+    @model_validator(mode="after")
+    def _note_required_for_other(self) -> OverrideRequest:
+        if self.reason is Reason.OTHER and not self.note.strip():
+            raise ValueError("reason 'other' requires a note")
+        return self
+
+
+class OverrideResponse(BaseModel):
+    audit_hash: str
+    overrides: str = Field(..., description="the score entry this override answers")
 
 
 class AuditResponse(BaseModel):

@@ -1,0 +1,8 @@
+/* Mantine owns the theme. This only fixes the page box it renders into. */
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}

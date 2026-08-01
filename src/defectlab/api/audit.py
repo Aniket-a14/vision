@@ -88,6 +88,10 @@ class AuditLog:
     def entries(self, limit: int | None = None) -> list[Entry]:
         return self._entries[-limit:] if limit else list(self._entries)
 
+    def contains(self, entry_hash: str) -> bool:
+        """An override has to answer a decision that was actually recorded."""
+        return any(entry.hash == entry_hash for entry in self._entries)
+
     def __len__(self) -> int:
         return len(self._entries)
 

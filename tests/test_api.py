@@ -200,6 +200,98 @@ def test_the_served_gate_stays_inside_the_alarm_budget(client):
     assert (risk >= scorer.threshold).mean() <= MAX_ALERT_RATE
 
 
+def test_a_flagged_shot_gets_a_rule(client):
+    body = client.post(
+        "/explain",
+        json={"readings": _readings(pour_temp_c=650.0, fast_shot_velocity_ms=4.0)},
+    ).json()
+    assert body["prediction"] == 1
+    assert body["predicates"]
+    assert body["precision"] > 0.5
+
+
+def test_a_nominal_shot_may_get_an_empty_anchor(client):
+    """Not a bug. At the served threshold most of the line is 'ok', so the empty rule already
+    beats the precision target and there is nothing to add. Say so rather than invent a rule."""
+    body = client.post("/explain", json={"readings": _readings()}).json()
+    assert body["prediction"] == 0
+    assert body["coverage"] > 0.0
+
+
+def test_the_reason_catalogue_is_served(client):
+    """The UI renders what the server declares, so the vocabulary cannot drift in two places."""
+    codes = {row["code"] for row in client.get("/reasons").json()}
+    assert "other" in codes
+    assert len(codes) > 1
+
+
+def test_other_requires_a_note():
+    from defectlab.api.schemas import OverrideRequest
+
+    with pytest.raises(ValueError, match="requires a note"):
+        OverrideRequest(audit_hash="x", defective=False, reason="other")
+
+
+def test_a_named_reason_needs_no_note():
+    from defectlab.api.schemas import OverrideRequest
+
+    assert OverrideRequest(audit_hash="x", defective=False, reason="cosmetic_only").note == ""
+
+
+def test_an_override_is_chained_to_the_decision_it_answers(client):
+    scored = client.post("/score", json={"readings": _readings()}).json()
+    body = client.post(
+        "/override",
+        json={
+            "audit_hash": scored["audit_hash"],
+            "defective": False,
+            "reason": "known_tooling_mark",
+            "explanation_shown": "IF pour_temp_c in [640, 660] THEN defect",
+        },
+    ).json()
+    assert body["overrides"] == scored["audit_hash"]
+    assert client.get("/audit").json()["head"] == body["audit_hash"]
+
+
+def test_an_override_of_a_decision_that_was_never_made_is_refused(client):
+    """Otherwise the log would record a dissent from a call nobody can show was taken."""
+    response = client.post(
+        "/override",
+        json={"audit_hash": "0" * 64, "defective": False, "reason": "cosmetic_only"},
+    )
+    assert response.status_code == 404
+
+
+def test_the_override_records_what_was_on_screen(client):
+    """Re-deriving the explanation later would record what the model says now, not what was
+    shown then -- the one thing an audit of a past decision must not do."""
+    from defectlab.api.audit import digest_of
+
+    scored = client.post("/score", json={"readings": _readings()}).json()
+    shown = "IF die_temp_c in [180, 220] THEN ok"
+    body = client.post(
+        "/override",
+        json={
+            "audit_hash": scored["audit_hash"],
+            "defective": True,
+            "reason": "visual_confirmation",
+            "explanation_shown": shown,
+        },
+    ).json()
+    entry = next(e for e in client.get("/audit/entries").json() if e["hash"] == body["audit_hash"])
+    expected = digest_of(
+        {
+            "overrides": scored["audit_hash"],
+            "defective": True,
+            "reason": "visual_confirmation",
+            "note": "",
+            "explanation_shown": shown,
+            "model_version": client.app.state.defectlab.scorer.version,
+        }
+    )
+    assert entry["digest"] == expected
+
+
 def test_audit_entries_are_paged(client):
     client.post("/score", json={"readings": _readings()})
     entries = client.get("/audit/entries", params={"limit": 1}).json()

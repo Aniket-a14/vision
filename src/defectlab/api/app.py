@@ -11,15 +11,19 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from ..config import settings
-from . import scoring, stream
+from . import reasons, scoring, stream
 from .audit import AuditLog
 from .schemas import (
     ActionResponse,
     AuditResponse,
+    ExplainResponse,
     HealthResponse,
+    OverrideRequest,
+    OverrideResponse,
     PrescribeResponse,
     ScoreResponse,
     ShotRequest,
@@ -30,6 +34,9 @@ STREAM_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 MAX_AUDIT_PAGE = 500
 MAX_STREAM_SHOTS = 10000
 
+# The Vite dev server. Production serves the built bundle from the same origin and needs none.
+DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
 
 @dataclass(slots=True)
 class State:
@@ -38,6 +45,7 @@ class State:
     scorer: scoring.Scorer
     audit: AuditLog
     surrogate: object | None = None
+    explainer: object | None = None
 
 
 def create_app(seed: int = 42, estimator: str = "xgboost") -> FastAPI:
@@ -49,7 +57,13 @@ def create_app(seed: int = 42, estimator: str = "xgboost") -> FastAPI:
         )
         yield
 
-    app = FastAPI(title="DefectLab", version="1.0", lifespan=lifespan)
+    app = FastAPI(title="DefectLab", version="1.1", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=DEV_ORIGINS,
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
     _register(app)
     return app
 
@@ -121,6 +135,54 @@ def _register(app: FastAPI) -> None:
             stability=survives.rate,
         )
 
+    @app.post("/explain", response_model=ExplainResponse)
+    def explain(request: ShotRequest) -> ExplainResponse:
+        """The anchor rule for one shot, grown against the served threshold."""
+        return ExplainResponse(**_explainer(_state(app)).rule(request.readings))
+
+    @app.get("/parameters")
+    def parameters() -> list[dict]:
+        """Machine limits and actionability, so the UI never hard-codes a second copy of the
+        physics. A sandbox slider that allows an impossible setpoint teaches the wrong thing."""
+        from ..twin import FEATURES, spec
+
+        return [
+            {
+                "name": name,
+                "unit": spec(name).unit,
+                "nominal": spec(name).nominal,
+                "lower": spec(name).lower,
+                "upper": spec(name).upper,
+                "actionability": spec(name).actionability.value,
+                "ramp_limit": spec(name).ramp_limit,
+            }
+            for name in FEATURES
+        ]
+
+    @app.get("/reasons")
+    def override_reasons() -> list[dict]:
+        """Served rather than hard-coded in the UI, so the two cannot drift apart."""
+        return reasons.catalogue()
+
+    @app.post("/override", response_model=OverrideResponse)
+    def override(request: OverrideRequest) -> OverrideResponse:
+        """Record an operator disagreeing with the gate, against the decision they saw."""
+        state = _state(app)
+        if not state.audit.contains(request.audit_hash):
+            raise HTTPException(status_code=404, detail="no such decision in the audit log")
+        entry = state.audit.append(
+            "override",
+            {
+                "overrides": request.audit_hash,
+                "defective": request.defective,
+                "reason": request.reason.value,
+                "note": request.note,
+                "explanation_shown": request.explanation_shown,
+                "model_version": state.scorer.version,
+            },
+        )
+        return OverrideResponse(audit_hash=entry.hash, overrides=request.audit_hash)
+
     @app.get("/stream")
     def live(
         interval: float = Query(1.0, ge=0.05, le=60.0),
@@ -163,3 +225,12 @@ def _surrogate(state: State):
     if state.surrogate is None:
         raise HTTPException(status_code=503, detail="surrogate unavailable")
     return state.surrogate
+
+
+def _explainer(state: State):
+    """Also first-use: the anchor background costs a twin run."""
+    from . import explaining
+
+    if state.explainer is None:
+        state.explainer = explaining.build(state.scorer)
+    return state.explainer

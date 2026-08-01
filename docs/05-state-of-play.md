@@ -32,9 +32,10 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `export` | done — validated star schema + generated PBIP | `defectlab export` |
 | `api` | done — score, prescribe, SSE stream, hash-chained audit | `defectlab serve` |
 | `edge` | done — MQTT line simulator and scoring gate | `defectlab line` |
+| `app/` | done — React operator UI | `npm run dev` in `app/` |
 
-Not started beyond the package: React app, deploy, offline bundle, report, slides, and the
-**Power BI `.pbix` report pages**, which are the last manual step on a hard rubric requirement.
+Not started: deploy, offline bundle, report, slides, and the **Power BI `.pbix` report pages**,
+which are the last manual step on a hard rubric requirement.
 
 ## The results that are settled
 
@@ -185,6 +186,26 @@ Measured live: 14.2 % of 3,000 streamed shots = **8.5 alarms/hour**, inside the 
 (`tool_wear_shots` ≈ 47k, settling to ≈ 27k). That is a real high-risk regime, not a defect —
 the budget is a long-run design target, not a per-window cap.
 
+## The operator app
+
+`app/`, React + TypeScript + Vite, Mantine and uPlot. Full write-up in `docs/07-app.md`; the
+short version:
+
+- Live line (SSE) with the risk chart **on the logit axis**, alarm rate in **alarms/hour**, and a
+  shot list. Click a shot to inspect it.
+- Inspector: the anchor rule, the ramp-limited prescription, the readings, and the override.
+- Sandbox: sliders bounded by `/parameters`, with lot-level and maintenance parameters locked.
+- Four new endpoints back it: `/explain`, `/prescribe`, `/parameters`, `/reasons`, `/override`.
+
+**The stream does not audit; selecting a shot does.** A shot nobody looked at is not a decision
+anyone made. An override must carry the `audit_hash` of a decision the log actually contains
+(404 otherwise) and the **explanation that was on screen at the time** — re-deriving it later
+would record what the model says now, which is the one thing an audit of a past decision must
+not do. It is an attestation, not a verified fact, and the docstring says so.
+
+**Not done: operator identity.** The override records what and why, not by whom. A quality record
+with no signatory is incomplete; say it before an examiner does.
+
 ## Conventions that are load-bearing
 
 - **Layer contract in `pyproject.toml` is enforced.** `economics` sits *below* `models`, so it
@@ -207,7 +228,8 @@ the budget is a long-run design target, not a per-window cap.
    from `export/schema.py` so they cannot drift). **Read `docs/06-powerbi.md`** — it has the
    page-by-page build guide. Open the PBIP in Desktop, lay out four pages, File → Save As.
    This is the last manual step on the hard rubric item and it is maybe an hour.
-2. React app, deploy, offline bundle, report, slides.
+2. Deploy (`docker compose` already defines postgres, mosquitto and redis), offline bundle,
+   report, slides.
 
 A note on ordering, learned the hard way: breadth-first beats depth-first here. Adding seeds to
 an already-significant result optimises the thing most recently looked at, while a
