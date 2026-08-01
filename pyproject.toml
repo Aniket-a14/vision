@@ -95,6 +95,8 @@ max-args = 8
 "src/defectlab/prescribe/search.py" = ["PLC0415"]
 "src/defectlab/api/app.py" = ["PLC0415"]
 "src/defectlab/api/scoring.py" = ["PLC0415"]
+# paho is an optional extra; importing it lazily keeps the loopback demo dependency-free.
+"src/defectlab/edge/transport.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -117,6 +119,7 @@ layers = [
     "(defectlab.cli)",
     "(defectlab.export)",
     "(defectlab.report)",
+    "(defectlab.edge)",
     "(defectlab.api)",
     "(defectlab.prescribe)",
     "(defectlab.explain)",

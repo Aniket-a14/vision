@@ -25,6 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_prescribe(subparsers)
     _add_export(subparsers)
     _add_serve(subparsers)
+    _add_line(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -180,6 +181,22 @@ def _add_serve(subparsers) -> None:
     parser.add_argument("--seed", type=int, default=settings.seed)
     parser.add_argument("--quiet", action="store_true")
     parser.set_defaults(handler=commands.serve)
+
+
+def _add_line(subparsers) -> None:
+    parser = subparsers.add_parser("line", help="publish and score shot telemetry over MQTT")
+    parser.add_argument("--role", choices=("publish", "gate", "both"), default="both")
+    parser.add_argument("--loopback", action="store_true", help="in-process broker, no daemon")
+    parser.add_argument("--host", default="localhost")
+    parser.add_argument("--port", type=int, default=1883)
+    parser.add_argument("--cell", default="cell-01")
+    parser.add_argument("--cycle", type=float, default=1.0, help="seconds between shots")
+    parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--no-audit", action="store_true")
+    parser.add_argument("--estimator", default="xgboost")
+    parser.add_argument("--seed", type=int, default=settings.seed)
+    parser.add_argument("--quiet", action="store_true")
+    parser.set_defaults(handler=commands.line)
 
 
 def _add_gates(subparsers) -> None:

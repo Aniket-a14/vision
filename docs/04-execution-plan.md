@@ -386,6 +386,56 @@ At 8.3 % on a one-minute cycle that is ~5 alarms/hour, inside the ISA-18.2 6–1
 the profile is now dominated by genuine 3-sigma excursions rather than rule 2 chasing a
 wandering mean.
 
+### The MQTT edge, and the scale bug it caught
+
+`defectlab line` splits the demo into the two halves a real cell has: a producer that publishes
+what it measured and knows nothing about models or costs, and a gate that scores and publishes
+verdicts. `--loopback` runs both against an in-process broker so nothing has to be installed.
+
+Three decisions worth defending:
+
+1. **Asymmetric QoS.** Telemetry at-most-once, verdicts at-least-once. A reading that needed
+   retransmitting is already stale; a lost reject is a shipped defect. At-least-once admits
+   duplicates, so `Gate` keys on `shot_index` and refuses to write a redelivery to the audit
+   chain — the chain must record decisions the line made, not redeliveries the broker made.
+2. **A last will.** The broker publishes `offline` on the cell's status topic if the connection
+   drops without a clean disconnect. This is the thing SSE cannot do: an HTTP stream that stops
+   just stops, and every consumer invents its own timeout. It only works if the will is armed
+   before `connect()`, which is pinned by test rather than by comment.
+3. **One `Scorer` for both transports**, so a verdict cannot depend on whether it was asked for
+   over HTTP or MQTT — same model, same threshold, same audit chain.
+
+Scoring a whole nominal line for the first time flagged **83 % of shots**. The API smoke test had
+only ever scored one deliberately-bad shot, so nothing had reported an aggregate before.
+
+The cause was a units error: `FittedModel.threshold` is the cost optimum at the **research**
+prevalence (57 %), while `Scorer.risk` is prior-corrected to the **line** prevalence (3 %).
+The two sides of the inequality were on different scales. The served threshold is now re-chosen
+on corrected scores at the deployment prior, on a held-out quarter the estimator never saw.
+
+That took it to 66 %, and the remaining 66 % is a result, not a bug: **process telemetry alone
+barely separates the classes** — raw scores bunch at mean 0.54, median 0.53 on a 57 %-defective
+set — so with an escape at 100x an inspection the unconstrained optimum genuinely wants to
+inspect half the line. Economically correct, operationally unusable. The served gate therefore
+also imposes the ISA-18.2 budget (12 alarms/hour on a 60 s cycle = 20 % alert rate).
+
+**The budget binds here although it did not bind in the offline study**, and it is expensive:
+
+| threshold | cost/shot | escape rate | alert rate |
+|---|---|---|---|
+| cost optimum, 0.0100 | €2.50 | 0.074 | 0.485 |
+| budgeted, 0.2122 | €6.12 | 0.654 | 0.022 |
+
+At €6.12 the budgeted process-only gate is **worse than inspecting everything at €3.36**. State
+this rather than hide it: process telemetry alone does not support an economically viable gate at
+an alarm rate an operator can work, and that gap is precisely what the image channel buys. It is
+the strongest argument for fusion in the project, and it was found by instrumenting the demo.
+
+Live measurement: 14.2 % of 3,000 streamed shots = **8.5 alarms/hour**, inside the band. The
+first ~500 shots run hotter (31.7 %) because `stream_line` starts from a worn die
+(`tool_wear_shots` ≈ 47k, settling to ≈ 27k) — a genuine high-risk regime, and the budget is a
+long-run design target rather than a per-window cap.
+
 ### Gate 4
 
 - [ ] Every figure in the report regenerable by one command

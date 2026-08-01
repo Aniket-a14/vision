@@ -172,6 +172,34 @@ def test_a_rejected_shot_returns_422_and_is_not_audited(client):
     assert client.get("/audit").json()["entries"] == before
 
 
+def test_the_served_threshold_is_not_the_fitted_one(client):
+    """`FittedModel.threshold` is the optimum at the research prevalence. Comparing a 3 %-scale
+    risk against it mixes two scales, and flagged 83 % of a nominal line before it was caught."""
+    scorer = client.app.state.defectlab.scorer
+    assert scorer.threshold > scorer.model.threshold
+
+
+def test_the_served_gate_stays_inside_the_alarm_budget(client):
+    """A gate an operator cannot keep up with is not a gate. ISA-18.2 caps it at 12 alarms/hour."""
+    import itertools
+
+    import pandas as pd
+
+    from defectlab.api.scoring import MAX_ALERT_RATE
+    from defectlab.economics import shift
+    from defectlab.twin import TwinConfig, stream_line
+
+    scorer = client.app.state.defectlab.scorer
+    shots = itertools.islice(stream_line(TwinConfig(seed=5)), 400)
+    frame = pd.DataFrame([{n: float(s.reading[n]) for n in FEATURES} for s in shots])
+    risk = shift(
+        scorer.model.score(frame[list(FEATURES)].to_numpy()),
+        scorer.source_prevalence,
+        scorer.target_prevalence,
+    )
+    assert (risk >= scorer.threshold).mean() <= MAX_ALERT_RATE
+
+
 def test_audit_entries_are_paged(client):
     client.post("/score", json={"readings": _readings()})
     entries = client.get("/audit/entries", params={"limit": 1}).json()

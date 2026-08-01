@@ -31,10 +31,10 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `prescribe` | done — interventional surrogate, ramp-limited advice | `defectlab prescribe` |
 | `export` | done — validated star schema + generated PBIP | `defectlab export` |
 | `api` | done — score, prescribe, SSE stream, hash-chained audit | `defectlab serve` |
-| `api` | **not started** | — |
+| `edge` | done — MQTT line simulator and scoring gate | `defectlab line` |
 
-Not started beyond the package: React app, MQTT simulator, deploy, offline bundle, report,
-slides, and the **Power BI `.pbix`, which is a hard rubric requirement still at zero**.
+Not started beyond the package: React app, deploy, offline bundle, report, slides, and the
+**Power BI `.pbix` report pages**, which are the last manual step on a hard rubric requirement.
 
 ## The results that are settled
 
@@ -130,6 +130,61 @@ anything across a redeploy).
 recompute the chain from genesis. Real tamper-evidence needs the head published somewhere the
 writer does not control. Say this before an examiner does.
 
+## The MQTT edge
+
+`defectlab line --loopback --limit 120 --cycle 0` runs producer and consumer in one process
+against an in-memory broker, so the demo needs no Mosquitto. `--role publish` / `--role gate`
+split them across a real broker; `--host`/`--port` point at it.
+
+- **The QoS split is the design.** Telemetry is at-most-once — a reading that needed
+  retransmitting is already stale. Verdicts are at-least-once — a lost reject is a shipped
+  defect. At-least-once means redelivery, so `Gate` is idempotent on `shot_index` and a
+  duplicate is **not** written to the audit chain: the chain records decisions the line made,
+  not redeliveries the broker made.
+- **The last will is the reason to use MQTT at all.** The broker holds an `offline` status
+  message and publishes it *for* the cell if the connection drops without a clean disconnect.
+  An SSE stream that stops just stops, and every consumer has to invent its own timeout. The
+  will must be armed before `connect()`, which is what `test_the_will_is_registered_before_the_
+  connection` pins.
+- Status is **retained**, so a dashboard opened mid-shift learns the cell state immediately
+  rather than after a cycle.
+- The gate scores with `api.scoring.Scorer` — the same object the HTTP endpoint serves. One
+  model, one threshold, one audit chain, so a decision cannot depend on the transport it
+  arrived over.
+
+## The served threshold was on the wrong scale
+
+Found by the MQTT gate, because it was the first thing to score a whole nominal line and report
+an aggregate — the API smoke test only ever scored one deliberately-bad shot. It flagged
+**83 %**.
+
+`FittedModel.threshold` is the cost optimum at the **research** prevalence (57 %). `Scorer.risk`
+is prior-corrected to the **line** prevalence (3 %). Comparing them put the two sides of the
+inequality on different scales. `api/scoring.py` now re-chooses the threshold on corrected
+scores at the deployment prior, on a held-out quarter the estimator never saw.
+
+That fix alone gave 66 %, and the reason is a result rather than a bug: **process telemetry
+alone barely separates the classes**, so with an escape at 100x an inspection the unconstrained
+optimum wants to inspect roughly half the line. Economically right, operationally unusable.
+So the served gate also imposes the ISA-18.2 budget (12 alarms/hour on a 60 s cycle = a 20 %
+alert rate), and **that constraint binds here although it did not bind offline**.
+
+Quote the price of it, because it is steep and it is the argument for fusion:
+
+| threshold | cost/shot | escape rate | alert rate |
+|---|---|---|---|
+| cost optimum, 0.0100 | €2.50 | 0.074 | 0.485 |
+| budgeted, 0.2122 | €6.12 | 0.654 | 0.022 |
+
+At €6.12 the budgeted process-only gate is **worse than inspecting everything** (€3.36). The
+honest statement is that process telemetry alone does not support an economically viable gate at
+a usable alarm rate, and that is exactly what the image channel buys.
+
+Measured live: 14.2 % of 3,000 streamed shots = **8.5 alarms/hour**, inside the band. The first
+~500 shots of a stream run hotter (31.7 %) because `stream_line` starts from a worn die
+(`tool_wear_shots` ≈ 47k, settling to ≈ 27k). That is a real high-risk regime, not a defect —
+the budget is a long-run design target, not a per-window cap.
+
 ## Conventions that are load-bearing
 
 - **Layer contract in `pyproject.toml` is enforced.** `economics` sits *below* `models`, so it
@@ -152,10 +207,7 @@ writer does not control. Say this before an examiner does.
    from `export/schema.py` so they cannot drift). **Read `docs/06-powerbi.md`** — it has the
    page-by-page build guide. Open the PBIP in Desktop, lay out four pages, File → Save As.
    This is the last manual step on the hard rubric item and it is maybe an hour.
-2. **MQTT line simulator** — the streaming producer for the live demo. The SSE feed already
-   works without it; MQTT is what makes it look like a real line rather than a web app talking
-   to itself.
-3. React app, deploy, offline bundle, report, slides.
+2. React app, deploy, offline bundle, report, slides.
 
 A note on ordering, learned the hard way: breadth-first beats depth-first here. Adding seeds to
 an already-significant result optimises the thing most recently looked at, while a
