@@ -19,6 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_extract(subparsers)
     _add_ablate(subparsers)
     _add_figures(subparsers)
+    _add_explain(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -96,6 +97,23 @@ def _add_figures(subparsers) -> None:
     )
     parser.add_argument("--out", default="results/figures")
     parser.set_defaults(handler=commands.figures)
+
+
+def _add_explain(subparsers) -> None:
+    parser = subparsers.add_parser("explain", help="grouped SHAP attribution for one cell")
+    parser.add_argument("--root", default=str(commands.default_root()))
+    parser.add_argument("--processed", default=str(commands.default_processed()))
+    parser.add_argument("--out", default="results")
+    parser.add_argument("--backbone", default="resnet18")
+    parser.add_argument("--estimator", default="xgboost")
+    parser.add_argument("--modality", default="fusion", choices=["vision", "process", "fusion"])
+    parser.add_argument("--regime", default="inline", choices=["lab", "inline"])
+    parser.add_argument("--severity", type=float, default=1.0)
+    parser.add_argument("--components", type=int, default=settings.pca_components)
+    parser.add_argument("--row", type=int, default=0, help="which test part to explain")
+    parser.add_argument("--oversample", type=int, default=4)
+    _add_twin_arguments(parser)
+    parser.set_defaults(handler=commands.explain)
 
 
 def _add_gates(subparsers) -> None:

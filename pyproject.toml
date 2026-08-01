@@ -90,6 +90,7 @@ max-args = 8
 # Keeps the sklearn and xgboost import cost off the fast commands.
 "src/defectlab/cli/commands.py" = ["PLC0415"]
 "src/defectlab/models/estimators.py" = ["PLC0415"]
+"src/defectlab/explain/attribution.py" = ["PLC0415"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

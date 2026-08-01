@@ -163,6 +163,51 @@ def _backbone_of(path: Path) -> str:
     return path.stem.removeprefix("ablation_")
 
 
+def explain(args: argparse.Namespace) -> int:
+    """Grouped SHAP attribution for one fitted cell, global and per part."""
+    from ..explain import explain as attribute
+    from ..models.pipeline import FitConfig, fit
+
+    dataset, blocks = _explain_blocks(args)
+    model = fit(
+        blocks.train, dataset.train["label"].to_numpy(), FitConfig(estimator=args.estimator)
+    )
+    attribution = attribute(model, blocks.test, blocks.names)
+    print(attribution.importance().round(4).to_string())
+    print(f"\nrow {args.row}, label {dataset.test['label'].iloc[args.row]}:")
+    print(attribution.explain_row(args.row).round(4).to_string())
+    return _write_attribution(attribution, dataset.test, Path(args.out), args.backbone)
+
+
+def _explain_blocks(args: argparse.Namespace):
+    """The twin is rebuilt so the explanation lines up with the rows it describes."""
+    from ..models.features import Modality, build_blocks
+
+    config = TwinConfig(seed=args.seed, signal_gain=args.signal_gain)
+    dataset = build_data.build(Path(args.root), config, oversample=args.oversample)
+    regime = Regime(args.regime)
+    data = _regime_data(Path(args.processed), args.backbone, regime, args.severity)
+    blocks = build_blocks(
+        Modality(args.modality),
+        dataset.train,
+        dataset.test,
+        data.train_embeddings,
+        data.test_embeddings,
+        args.components,
+    )
+    return dataset, blocks
+
+
+def _write_attribution(attribution, test: pd.DataFrame, out: Path, backbone: str) -> int:
+    out.mkdir(parents=True, exist_ok=True)
+    frame = attribution.frame()
+    frame.insert(0, "label", test["label"].to_numpy())
+    destination = out / f"attribution_{backbone}.csv"
+    frame.to_csv(destination, index=False)
+    print(f"\nwrote {destination}")
+    return 0
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)
