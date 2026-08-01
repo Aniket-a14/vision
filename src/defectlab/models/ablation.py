@@ -70,6 +70,7 @@ def degradation_sweep(
 
 
 SPREAD = ("mean", "std", "min", "max")
+MIN_SEEDS_FOR_A_TEST = 2
 
 
 def summarise(results: pd.DataFrame) -> pd.DataFrame:
@@ -97,9 +98,16 @@ def _paired_deltas(results: pd.DataFrame) -> pd.DataFrame:
 
 def _paired_test(deltas: pd.Series) -> pd.Series:
     """Seeds are few, so report t and p rather than leaning on a bootstrap."""
-    statistic, pvalue = stats.ttest_1samp(deltas, 0.0)
     wins = int((deltas > 0.0).sum())
+    statistic, pvalue = _t_and_p(deltas)
     return pd.Series({"t": statistic, "p": pvalue, "wins": wins, "n": len(deltas)})
+
+
+def _t_and_p(deltas: pd.Series) -> tuple[float, float]:
+    """One seed cannot be tested against zero; say so rather than dividing by it."""
+    if len(deltas) < MIN_SEEDS_FOR_A_TEST:
+        return float("nan"), float("nan")
+    return stats.ttest_1samp(deltas, 0.0)
 
 
 def _present(results: pd.DataFrame, *names: str) -> list[str]:

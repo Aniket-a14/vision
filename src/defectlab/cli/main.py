@@ -18,6 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_simulate(subparsers)
     _add_extract(subparsers)
     _add_ablate(subparsers)
+    _add_figures(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -84,6 +85,13 @@ def _add_ablate(subparsers) -> None:
     parser.add_argument("--oversample", type=int, default=4)
     parser.add_argument("--fit-seed", type=int, default=settings.seed)
     parser.set_defaults(handler=commands.ablate)
+
+
+def _add_figures(subparsers) -> None:
+    parser = subparsers.add_parser("figures", help="render the sweep charts from a results table")
+    parser.add_argument("--results", default="results/ablation_resnet18.csv")
+    parser.add_argument("--out", default="results/figures")
+    parser.set_defaults(handler=commands.figures)
 
 
 def _add_gates(subparsers) -> None:

@@ -142,6 +142,14 @@ def test_fusion_gain_reports_no_significance_when_seeds_disagree():
     assert gain["p"] > 0.05
 
 
+def test_single_seed_reports_no_test_rather_than_a_spurious_one():
+    """One seed has no spread to test against zero, and must not fabricate a p-value."""
+    gain = fusion_gain(_tidy({1.0: [0.02]})).iloc[0]
+    assert gain["n"] == 1
+    assert np.isnan(gain["t"])
+    assert np.isnan(gain["p"])
+
+
 def test_summarise_keeps_severity_as_a_grouping_key():
     table = summarise(_tidy({0.5: [0.01], 2.0: [0.05]}))
     assert set(table.columns) >= {"modality", "regime", "severity", "mean", "std"}

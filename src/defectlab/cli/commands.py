@@ -140,6 +140,16 @@ def _ablate_severity(dataset, severity: float, args: argparse.Namespace) -> pd.D
     return results
 
 
+def figures(args: argparse.Namespace) -> int:
+    """Render the sweep charts from a results table written by `ablate`."""
+    from ..report import write_sweep_figures
+
+    results = pd.read_csv(args.results)
+    for path in write_sweep_figures(results, Path(args.out)):
+        print(f"wrote {path}")
+    return 0
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)
