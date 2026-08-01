@@ -7,7 +7,15 @@ import pytest
 pytest.importorskip("shap")
 pytest.importorskip("xgboost")
 
-from defectlab.explain import IMAGE_GROUP, PROCESS_GROUPS, assign, explain, group_of
+from defectlab.explain import (
+    IMAGE_GROUP,
+    PROCESS_GROUPS,
+    ale,
+    ale_table,
+    assign,
+    explain,
+    group_of,
+)
 from defectlab.models.features import Modality, build_blocks
 from defectlab.models.pipeline import FitConfig, fit
 from defectlab.twin import FEATURES, TwinConfig, run_line, score
@@ -87,3 +95,51 @@ def test_row_explanation_is_ordered_by_magnitude(fitted):
     model, blocks = fitted
     row = explain(model, blocks.test, blocks.names).explain_row(0)
     assert list(row.abs()) == sorted(row.abs(), reverse=True)
+
+
+ALE_BINS = 10
+
+
+@pytest.fixture
+def grid() -> np.ndarray:
+    return np.random.default_rng(0).normal(size=(4000, 3))
+
+
+def test_ale_recovers_a_known_linear_slope(grid):
+    """The accumulation is defined at bin edges but reported at centres; a slope catches that."""
+    curve = ale(lambda f: 2.0 * f[:, 0], grid, 0, "x0", bins=ALE_BINS)
+    assert np.polyfit(curve.centres, curve.effect, 1)[0] == pytest.approx(2.0, abs=1e-6)
+
+
+def test_ale_is_flat_for_an_unused_feature(grid):
+    curve = ale(lambda f: 3.0 * f[:, 1], grid, 0, "x0", bins=ALE_BINS)
+    assert np.abs(curve.effect).max() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_ale_survives_correlated_features():
+    """Partial dependence would be biased here; ALE stays on the observed manifold."""
+    rng = np.random.default_rng(1)
+    shared = rng.normal(size=3000)
+    features = np.column_stack([shared + 0.1 * rng.normal(size=3000), shared])
+    curve = ale(lambda f: 2.0 * f[:, 0], features, 0, "x0", bins=ALE_BINS)
+    assert np.polyfit(curve.centres, curve.effect, 1)[0] == pytest.approx(2.0, abs=1e-6)
+
+
+def test_ale_is_centred_on_the_data(grid):
+    curve = ale(lambda f: 2.0 * f[:, 0], grid, 0, "x0", bins=ALE_BINS)
+    weighted = float(np.sum(curve.counts * curve.effect) / curve.counts.sum())
+    assert weighted == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_constant_feature_yields_an_empty_curve():
+    """Quantile edges collapse to one value; that must not raise."""
+    features = np.column_stack([np.ones(100), np.arange(100.0)])
+    curve = ale(lambda f: f[:, 1], features, 0, "constant", bins=ALE_BINS)
+    assert curve.span() == 0.0
+    assert len(curve.effect) == 0
+
+
+def test_ale_table_covers_every_named_column(grid):
+    table = ale_table(lambda f: f[:, 0] + f[:, 1], grid, ["a", "b", "c"], bins=ALE_BINS)
+    assert set(table["feature"]) == {"a", "b", "c"}
+    assert table["shots"].sum() == len(grid) * 3
