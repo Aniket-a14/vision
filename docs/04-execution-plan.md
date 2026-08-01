@@ -351,6 +351,41 @@ reported with the reason it is strong, or it is worth nothing:
 Advice is suppressed below the 3 % line base rate. Before that gate the median shot — risk
 0.0001 — was still collecting three setpoint changes worth 4.8 logits it had no use for.
 
+### The dashboard export, and two bugs it exposed
+
+`defectlab export` writes eight CSVs and a manifest to `data/exports/`. The contract is checked
+on write — undeclared columns, missing columns and repeated keys all fail the build, because a
+dashboard that silently loses a column fails at the viva whereas a build that refuses fails in
+CI, where it is cheap.
+
+**Two grains, deliberately not merged.** The first version charted SPC on the held-out
+evaluation set and signalled on **48 % of points**. None of it was real: that set is oversampled
+and grouped by label (lag-1 label autocorrelation 0.997, one run of 453 identical labels), so
+every "nine points on one side" was reading row order, not the process. Sorting by `shot_index`
+does not fix it — autocorrelation only falls to 0.454, and prevalence is 63 %, not 3 %. The
+evaluation set simply is not a time series. So `fact_shot` now carries **no timestamp**, and a
+separate `fact_production` table holds a genuine contiguous run (1,440 shots, one per minute,
+prevalence 0.029, label autocorrelation −0.006) which is the only source of anything with a
+clock on it.
+
+**The risk chart signal rate fell from 34.8 % to 8.3 %** through three fixes, in order of size:
+
+1. *Nelson rules were not edge-triggered.* One sustained 30-point shift raised **22 alarms**,
+   not one — and `nelson.py`'s own docstring claimed otherwise. The existing test passed only
+   because its fixture was exactly nine points, the window length. Rules 2/3/4/7/8 now fire once
+   when a run completes; rule 1 still fires per excursion, since each is its own event.
+2. *The chart was drawn on the probability.* Raw risk has skew +4.25 and excess kurtosis +18.9 —
+   points bunched near zero trip rule 7 while the tail trips rule 1 simultaneously. The logit
+   has skew +1.02 and kurtosis +1.19.
+3. *An AR(1) residual chart, which barely helped* — and that is itself the useful finding.
+   Correlation of 0.23 at lag 1 still sitting at 0.16 at lag 20 is not AR(1) structure, which
+   decays geometrically; it is a level shift between alloy lots. Consistent with the project's
+   central claim that the lot, not the shot, is the unit.
+
+At 8.3 % on a one-minute cycle that is ~5 alarms/hour, inside the ISA-18.2 6–12/hour band, and
+the profile is now dominated by genuine 3-sigma excursions rather than rule 2 chasing a
+wandering mean.
+
 ### Gate 4
 
 - [ ] Every figure in the report regenerable by one command

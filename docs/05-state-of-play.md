@@ -5,7 +5,7 @@ Written 2026-08-01. Read this first when resuming; it is the only file that need
 ## Verify the build in one command
 
 ```
-./.venv/Scripts/python.exe -m pytest -q      # 187 tests
+./.venv/Scripts/python.exe -m pytest -q      # 210 tests
 ./.venv/Scripts/ruff.exe check . && ./.venv/Scripts/ruff.exe format --check .
 ./.venv/Scripts/lint-imports.exe             # 2 contracts, both KEPT
 ```
@@ -29,6 +29,7 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `economics` | done — prior shift, PAF, Taguchi, sensitivity | `defectlab economics` |
 | `spc` | done — X-bar/R, I-MR, EWMA, Nelson 1–8 | no CLI yet |
 | `prescribe` | done — interventional surrogate, ramp-limited advice | `defectlab prescribe` |
+| `export` | done — validated star schema for the dashboard | `defectlab export` |
 | `api` | **not started** | — |
 
 Not started beyond the package: React app, MQTT simulator, deploy, offline bundle, report,
@@ -68,7 +69,9 @@ Do not re-run these to check them; they are recorded in `docs/04-execution-plan.
 - Alert rate 16.5 % of shots = **9.9 alarms/hour** on a one-minute cycle, inside the ISA-18.2
   6–12/hour band *without the constraint being imposed*. That is a result, and it closes the
   question deferred at `models/pipeline.py:19`.
-- **Search and score on the margin, not on probability.** This has now bitten three times —
+- **Search and score on the margin, not on probability.** This has now bitten four times —
+  including the SPC risk chart, where the raw probability has skew +4.25 and excess kurtosis
+  +18.9 and fails the Shewhart normality assumption outright (logit: +1.02 and +1.19). Also
   SHAP attribution, the prescribe search, and the prescribe robustness measure. A risky shot
   sits where the sigmoid is flat, so a real improvement of 16 logits reads as a probability
   change of zero. Any new optimiser or effect measure should default to logits.
@@ -89,6 +92,22 @@ improvement dominates the worsening by ~100×, and ±50 % is at most a 3× swing
 "for shots this far from nominal the advice does not depend on the weights", not "the advice is
 verified". Full write-up in `docs/04-execution-plan.md`.
 
+## The export contract
+
+`defectlab export` writes eight CSVs plus a `manifest.json` of row counts and digests. Two
+grains, and they must not be merged:
+
+- **`fact_shot`** — the held-out evaluation set. Model metrics live here. **It carries no
+  timestamp on purpose**: it is oversampled and grouped by label (lag-1 label autocorrelation
+  0.997, one run of 453 identical labels), so it has no time axis and stamping a clock on it
+  invents one.
+- **`fact_production`** — a contiguous run of the line. Everything time-indexed hangs off this:
+  the clock, `dim_date`, and every control chart. Scored on process telemetry alone, which is
+  what a continuous monitor actually reads between imaged parts.
+
+Building the SPC page on the evaluation set signalled on 48 % of points, all of it an artefact
+of row order. That mistake is the reason the two grains are separate.
+
 ## Conventions that are load-bearing
 
 - **Layer contract in `pyproject.toml` is enforced.** `economics` sits *below* `models`, so it
@@ -105,9 +124,11 @@ verified". Full write-up in `docs/04-execution-plan.md`.
 
 ## Next, in order
 
-1. **Power BI `.pbix`** — hard rubric requirement, still at zero. Needs exports from
-   `explain`, `economics` and `spc`, which all now exist. **Do this before the API if time
-   gets short**; the API is impressive but not marked, and the `.pbix` is.
+1. **Power BI `.pbix`** — hard rubric requirement, still at zero, but now *unblocked*:
+   `defectlab export` writes the full star schema to `data/exports/`. A `.pbix` is a binary
+   container only Power BI Desktop (installed on this machine) can author; the text-authorable
+   route is a PBIP project opened in Desktop and saved as `.pbix`. **Do this before the API if
+   time gets short**; the API is impressive but not marked, and the `.pbix` is.
 2. **`api`** — FastAPI + SSE, MQTT line simulator, hash-chained audit log.
 3. React app, deploy, offline bundle, report, slides.
 
