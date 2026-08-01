@@ -34,9 +34,10 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `edge` | done — MQTT line simulator and scoring gate | `defectlab line` |
 | `app/` | done — React operator UI | `npm run dev` in `app/` |
 | `deploy/` | done — compose stack, two images | `docker compose up --build` |
+| offline bundle | done — verified by deleting every image | `python deploy/bundle.py` |
 
-Not started: offline bundle, report, slides, and the **Power BI `.pbix` report pages**, which are
-the last manual step on a hard rubric requirement.
+Not started: report, slides, and the **Power BI `.pbix` report pages**, which are the last manual
+step on a hard rubric requirement.
 
 ## The results that are settled
 
@@ -240,6 +241,29 @@ Against a real broker and the deployed stack:
   the reason MQTT is here rather than a second SSE feed.
 - Through nginx on :8080 — UI 200, `/api/health` ok, `/api/stream?limit=3` delivered 3 frames.
   In a 25 s window the containerised line moved **26 telemetry and 25 verdicts**.
+
+## The offline bundle
+
+`python deploy/bundle.py` → 260 MB in `dist/defectlab-offline`: `images.tar`, a generated compose
+file with no `build:` sections, `mosquitto.conf`, and a digest manifest. Full write-up in
+`docs/09-offline-bundle.md`.
+
+Three things break offline and none of them are visible until you unplug:
+
+1. Every service is declared with `build:`, which needs base images and PyPI. Compose therefore
+   now carries explicit `image: defectlab/api:local` tags; without them it names images after the
+   project directory and the bundle saves the wrong thing.
+2. mosquitto bind-mounts its config by **absolute path** into the build machine's repo.
+3. `docker compose config` emits `"command": null` for services inheriting the image CMD, and
+   writing that back sets an *empty* command. The API would have looked fine and **both line
+   containers would have started and done nothing**.
+
+**Verified by deletion, not inspection.** `docker image prune -af` reclaimed 9.875 GB and left no
+matching image; the stack then came up from the tar alone — UI 200, `/api/health` ok, 3 SSE
+frames, `--verify` intact. Tampering with one byte makes it report `BUNDLE CORRUPT`.
+
+**CI had `branches: [main]` while the repo is on `master`, so it had never run on a push.** Fixed,
+plus jobs for the frontend (tsc, oxlint, build) and the bundle.
 
 ## Conventions that are load-bearing
 

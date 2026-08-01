@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: deploy/api.Dockerfile
+    image: defectlab/api:local
     environment:
       DEFECTLAB_TARGET_DEFECT_RATE: "0.03"
     volumes:
@@ -30,6 +31,7 @@ services:
     build:
       context: .
       dockerfile: deploy/app.Dockerfile
+    image: defectlab/app:local
     ports: ["8080:80"]
     depends_on:
       api:
@@ -40,6 +42,7 @@ services:
     build:
       context: .
       dockerfile: deploy/api.Dockerfile
+    image: defectlab/api:local
     command: ["defectlab", "line", "--role", "publish", "--host", "mosquitto", "--cycle", "1.0"]
     # The image's healthcheck probes /health; this container serves no HTTP and would sit
     # unhealthy forever. Its liveness signal is the retained MQTT status topic, not a port.
@@ -60,6 +63,7 @@ services:
     build:
       context: .
       dockerfile: deploy/api.Dockerfile
+    image: defectlab/api:local
     command: ["defectlab", "line", "--role", "gate", "--host", "mosquitto"]
     healthcheck:
       disable: true

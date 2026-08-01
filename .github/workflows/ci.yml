@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
 
 env:
@@ -21,16 +21,67 @@ jobs:
       - run: uv python install 3.13
 
       - name: Install
-        run: uv sync --extra ml --extra viz
+        run: uv sync --extra ml --extra viz --extra serve
 
       - name: Lint
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests deploy
 
       - name: Format
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check src tests deploy
 
       - name: Architecture contracts
         run: uv run lint-imports
 
       - name: Tests
         run: uv run pytest tests -q --cov=defectlab --cov-report=term-missing
+
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Types
+        run: npx tsc -b
+
+      - name: Lint
+        run: npx oxlint
+
+      - name: Build
+        run: npm run build
+
+  bundle:
+    # The viva demo runs with no network, so the artefact that has to work is the bundle -- not
+    # the source tree. Building it in CI is the only way to know it still assembles.
+    runs-on: ubuntu-latest
+    needs: [quality, app]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Build the offline bundle
+        run: python3 deploy/bundle.py --out dist/defectlab-offline
+
+      - name: Verify its manifest
+        run: python3 deploy/bundle.py --out dist/defectlab-offline --verify
+
+      # The images tar is gigabytes; the artefact keeps the parts a reviewer reads.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-bundle-manifest
+          path: |
+            dist/defectlab-offline/manifest.json
+            dist/defectlab-offline/docker-compose.yml
+            dist/defectlab-offline/README.md
