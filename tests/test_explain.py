@@ -12,6 +12,7 @@ from defectlab.explain import (
     PROCESS_GROUPS,
     ale,
     ale_table,
+    anchor,
     assign,
     explain,
     group_of,
@@ -143,3 +144,44 @@ def test_ale_table_covers_every_named_column(grid):
     table = ale_table(lambda f: f[:, 0] + f[:, 1], grid, ["a", "b", "c"], bins=ALE_BINS)
     assert set(table["feature"]) == {"a", "b", "c"}
     assert table["shots"].sum() == len(grid) * 3
+
+
+NAMES = [f"x{index}" for index in range(3)]
+
+
+def _rule_model(features: np.ndarray) -> np.ndarray:
+    """Ground truth: a defect needs both conditions, so a correct anchor names both."""
+    return ((features[:, 0] > 1.0) & (features[:, 1] > 1.0)).astype(int)
+
+
+def test_anchor_recovers_both_conditions_of_a_known_rule(grid):
+    found = anchor(_rule_model, np.array([2.0, 2.0, 0.0]), grid, NAMES, seed=1)
+    assert {predicate.name for predicate in found.predicates} == {"x0", "x1"}
+    assert found.prediction == 1
+    assert found.precision > 0.95
+
+
+def test_anchor_contains_the_part_it_explains(grid):
+    instance = np.array([2.0, 2.0, 0.0])
+    found = anchor(_rule_model, instance, grid, NAMES, seed=1)
+    assert found.holds(instance.reshape(1, -1))[0]
+
+
+def test_anchor_coverage_is_the_share_of_shots_the_rule_admits(grid):
+    found = anchor(_rule_model, np.array([2.0, 2.0, 0.0]), grid, NAMES, seed=1)
+    assert found.coverage == pytest.approx(found.holds(grid).mean())
+    assert 0.0 < found.coverage < 1.0
+
+
+def test_a_majority_class_part_needs_no_predicates(grid):
+    """Precision is measured against resampled data, so the empty rule already scores high."""
+    found = anchor(_rule_model, np.array([-2.0, -2.0, 0.0]), grid, NAMES, seed=1)
+    assert found.predicates == ()
+    assert found.coverage == 1.0
+    assert "no anchor" in found.rule()
+
+
+def test_candidates_restrict_which_columns_may_be_anchored(grid):
+    """Anchoring on an image component would produce a rule no operator can act on."""
+    found = anchor(_rule_model, np.array([2.0, 2.0, 0.0]), grid, NAMES, candidates=[0], seed=1)
+    assert {predicate.name for predicate in found.predicates} <= {"x0"}

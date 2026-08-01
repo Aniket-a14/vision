@@ -173,10 +173,46 @@ def explain(args: argparse.Namespace) -> int:
         blocks.train, dataset.train["label"].to_numpy(), FitConfig(estimator=args.estimator)
     )
     attribution = attribute(model, blocks.test, blocks.names)
+    print("grouped SHAP (mean |log-odds|):")
     print(attribution.importance().round(4).to_string())
     print(f"\nrow {args.row}, label {dataset.test['label'].iloc[args.row]}:")
     print(attribution.explain_row(args.row).round(4).to_string())
+    _print_effects(model, blocks, args)
+    _print_anchor(model, blocks, args)
     return _write_attribution(attribution, dataset.test, Path(args.out), args.backbone)
+
+
+def _process_indices(names: list[str]) -> list[int]:
+    """Anchors and effect curves stay on process columns; a PC is not a shop-floor action."""
+    return [position for position, name in enumerate(names) if name in FEATURES]
+
+
+def _print_effects(model, blocks, args: argparse.Namespace) -> None:
+    """Accumulated local effects, ranked by how far each feature moves the model."""
+    from ..explain import ale
+
+    curves = [
+        ale(model.score, blocks.test, index, blocks.names[index])
+        for index in _process_indices(blocks.names)
+    ]
+    spans = pd.Series({curve.feature: curve.span() for curve in curves})
+    print("\nALE span, main effect only, in probability (not comparable to the log-odds above):")
+    print(spans.sort_values(ascending=False).round(4).to_string())
+
+
+def _print_anchor(model, blocks, args: argparse.Namespace) -> None:
+    from ..explain import anchor
+
+    rule = anchor(
+        lambda features: (model.score(features) >= model.threshold).astype(int),
+        blocks.test[args.row],
+        blocks.train,
+        blocks.names,
+        candidates=_process_indices(blocks.names),
+        seed=args.seed,
+    )
+    print(f"\nanchor for row {args.row}:")
+    print(rule.describe())
 
 
 def _explain_blocks(args: argparse.Namespace):
