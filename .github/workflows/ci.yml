@@ -78,7 +78,7 @@ jobs:
         run: python3 deploy/bundle.py --out dist/defectlab-offline --verify
 
       # The images tar is gigabytes; the artefact keeps the parts a reviewer reads.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: offline-bundle-manifest
           path: |
