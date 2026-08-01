@@ -21,8 +21,13 @@ class ImageReadError(RuntimeError):
     """Raised when an image path cannot be decoded."""
 
 
-def cache_path(root: Path, backbone: str, split: str, regime: Regime) -> Path:
-    return root / f"{split}_{backbone}_{regime.value}.npy"
+def cache_path(
+    root: Path, backbone: str, split: str, regime: Regime, severity: float = 1.0
+) -> Path:
+    """Severity keys the inline cache; the lab regime has nothing to vary."""
+    if regime is Regime.LAB:
+        return root / f"{split}_{backbone}_lab.npy"
+    return root / f"{split}_{backbone}_inline_s{severity:g}.npy"
 
 
 def extract_split(

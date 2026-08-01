@@ -18,9 +18,17 @@ class Regime(StrEnum):
     INLINE = "inline"
 
 
+MIN_GAIN = 0.05
+MIN_RESOLUTION = 16
+
+
 @dataclass(frozen=True, slots=True)
 class InlineCamera:
-    """Conveyor-mounted industrial CMOS under uncontrolled plant lighting."""
+    """Conveyor-mounted industrial CMOS under uncontrolled plant lighting.
+
+    Fields are the reference values at severity 1.0; severity scales every channel
+    together, so 0.0 is a clean capture and values above 1.0 extrapolate.
+    """
 
     severity: float = 1.0
     blur_kernel: int = 9
@@ -28,6 +36,24 @@ class InlineCamera:
     offset_range: tuple[float, float] = (-30.0, 30.0)
     noise_sd: float = 12.0
     effective_size: int = 96
+
+    def kernel_size(self) -> int:
+        """Odd-sized kernel; 1 is a no-op, which is what severity 0 must give."""
+        size = round(1 + (self.blur_kernel - 1) * self.severity)
+        return max(1, size + 1 if size % 2 == 0 else size)
+
+    def gain_bounds(self) -> tuple[float, float]:
+        """Clamped positive: a negative gain would invert the image, not dim it."""
+        scaled = (1.0 + (bound - 1.0) * self.severity for bound in self.gain_range)
+        return tuple(max(MIN_GAIN, bound) for bound in scaled)
+
+    def offset_bounds(self) -> tuple[float, float]:
+        return tuple(bound * self.severity for bound in self.offset_range)
+
+    def resolution(self, full: int) -> int:
+        """Geometric decay, so extrapolating past severity 1 degrades without collapsing."""
+        target = round(full * (self.effective_size / full) ** self.severity)
+        return int(np.clip(target, MIN_RESOLUTION, full))
 
 
 def degrade(image: np.ndarray, rng: np.random.Generator, camera: InlineCamera) -> np.ndarray:
@@ -51,7 +77,9 @@ def apply_regime(
 
 def _motion_blur(image: np.ndarray, rng: np.random.Generator, camera: InlineCamera) -> np.ndarray:
     """The part is moving under the camera, at an unknown angle."""
-    size = camera.blur_kernel
+    size = camera.kernel_size()
+    if size <= 1:
+        return image
     kernel = np.zeros((size, size), np.float32)
     kernel[size // 2, :] = 1.0
     centre = (size / 2 - 0.5, size / 2 - 0.5)
@@ -64,8 +92,8 @@ def _lighting_drift(
     image: np.ndarray, rng: np.random.Generator, camera: InlineCamera
 ) -> np.ndarray:
     """No controlled lighting rig on the line."""
-    gain = rng.uniform(*camera.gain_range)
-    offset = rng.uniform(*camera.offset_range)
+    gain = rng.uniform(*camera.gain_bounds())
+    offset = rng.uniform(*camera.offset_bounds())
     return gain * image + offset
 
 
@@ -77,5 +105,8 @@ def _resolution_loss(image: np.ndarray, camera: InlineCamera) -> np.ndarray:
     """Shorter working distance and cheaper optics cost effective resolution."""
     clipped = np.clip(image, 0, 255).astype(np.uint8)
     height, width = clipped.shape[:2]
-    small = cv2.resize(clipped, (camera.effective_size,) * 2, interpolation=cv2.INTER_AREA)
+    size = camera.resolution(min(height, width))
+    if size >= min(height, width):
+        return clipped
+    small = cv2.resize(clipped, (size,) * 2, interpolation=cv2.INTER_AREA)
     return cv2.resize(small, (width, height), interpolation=cv2.INTER_LINEAR)

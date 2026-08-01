@@ -12,6 +12,7 @@ from ..config import settings
 from ..data import build as build_data
 from ..data.images import verify_counts
 from ..imaging import Regime
+from ..imaging.degrade import InlineCamera
 from ..imaging.features import cache_path, extract_cached
 from ..twin import FEATURES, TwinConfig, run_line, score
 
@@ -42,17 +43,26 @@ def extract(args: argparse.Namespace) -> int:
     for split in build_data.SPLITS:
         frame = pd.read_parquet(processed / f"{split}_paired.parquet")
         for regime in _regimes(args.regime):
-            destination = cache_path(processed, args.backbone, split, regime)
-            features = extract_cached(
-                build_data.image_paths(frame),
-                regime,
-                args.backbone,
-                destination,
-                seed=args.seed,
-                batch_size=args.batch_size,
-            )
-            print(f"{split:<6} {regime.value:<7} {features.shape} -> {destination.name}")
+            for severity in _severities(args, regime):
+                destination = cache_path(processed, args.backbone, split, regime, severity)
+                features = extract_cached(
+                    build_data.image_paths(frame),
+                    regime,
+                    args.backbone,
+                    destination,
+                    seed=args.seed,
+                    batch_size=args.batch_size,
+                    camera=InlineCamera(severity=severity),
+                )
+                print(f"{split:<6} {regime.value:<7} {features.shape} -> {destination.name}")
     return 0
+
+
+def _severities(args: argparse.Namespace, regime: Regime) -> tuple[float, ...]:
+    """The lab regime is undegraded, so sweeping severity there would repeat one pass."""
+    if regime is Regime.LAB:
+        return (1.0,)
+    return tuple(float(value) for value in args.severities.split(","))
 
 
 def ablate(args: argparse.Namespace) -> int:
@@ -60,31 +70,41 @@ def ablate(args: argparse.Namespace) -> int:
     from ..models.ablation import fusion_gain, summarise
 
     seeds = [int(value) for value in args.seeds.split(",")]
-    results = pd.concat([_ablate_seed(seed, args) for seed in seeds], ignore_index=True)
+    severities = [float(value) for value in args.severities.split(",")]
+    results = pd.concat([_ablate_seed(seed, severities, args) for seed in seeds], ignore_index=True)
     print("\n" + summarise(results).round(4).to_string(index=False))
     print("\nfusion - vision, paired within seed:")
     print(fusion_gain(results).round(4).to_string(index=False))
     return _write_results(results, Path(args.out), args.backbone)
 
 
-def _ablate_seed(seed: int, args: argparse.Namespace) -> pd.DataFrame:
-    """Rebuild the twin for one seed; image order is fixed, so the caches still apply."""
+def _ablate_seed(seed: int, severities: list[float], args: argparse.Namespace) -> pd.DataFrame:
+    """Rebuild the twin once per seed; severity only changes the image side."""
+    config = TwinConfig(seed=seed, signal_gain=args.signal_gain)
+    dataset = build_data.build(Path(args.root), config, oversample=args.oversample)
+    frames = [_ablate_severity(dataset, severity, args) for severity in severities]
+    results = pd.concat(frames, ignore_index=True)
+    results.insert(0, "seed", seed)
+    print(f"seed {seed} done")
+    return results
+
+
+def _ablate_severity(dataset, severity: float, args: argparse.Namespace) -> pd.DataFrame:
+    """Image order is fixed across twin seeds, so the caches apply unchanged."""
     from ..models.ablation import AblationInputs, run
     from ..models.pipeline import FitConfig
 
     processed = Path(args.processed)
-    config = TwinConfig(seed=seed, signal_gain=args.signal_gain)
-    dataset = build_data.build(Path(args.root), config, oversample=args.oversample)
+    regimes = [Regime(name) for name in args.regimes.split(",")]
     inputs = AblationInputs(
         train_frame=dataset.train,
         test_frame=dataset.test,
-        regimes=[_regime_data(processed, args.backbone, regime) for regime in Regime],
+        regimes=[_regime_data(processed, args.backbone, r, severity) for r in regimes],
         n_components=args.components,
         fit_config=FitConfig(estimator=args.estimator, seed=args.fit_seed),
     )
     results = run(inputs)
-    results.insert(0, "seed", seed)
-    print(f"seed {seed} done")
+    results.insert(0, "severity", severity)
     return results
 
 
@@ -107,11 +127,14 @@ def _paired(processed: Path, split: str) -> pd.DataFrame:
     return pd.read_parquet(processed / f"{split}_paired.parquet")
 
 
-def _regime_data(processed: Path, backbone: str, regime: Regime):
+def _regime_data(processed: Path, backbone: str, regime: Regime, severity: float = 1.0):
     """Embeddings must already be cached; extraction is a separate, explicit step."""
     from ..models.ablation import RegimeData
 
-    paths = {split: cache_path(processed, backbone, split, regime) for split in build_data.SPLITS}
+    paths = {
+        split: cache_path(processed, backbone, split, regime, severity)
+        for split in build_data.SPLITS
+    }
     missing = [str(path) for path in paths.values() if not path.exists()]
     if missing:
         raise FileNotFoundError(f"run `defectlab extract` first; missing: {', '.join(missing)}")

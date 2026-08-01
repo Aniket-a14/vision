@@ -64,6 +64,7 @@ def _add_extract(subparsers) -> None:
     parser.add_argument("--regime", default="both", choices=["lab", "inline", "both"])
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--seed", type=int, default=settings.seed)
+    parser.add_argument("--severities", default="1", help="comma-separated inline severities")
     parser.add_argument("--quiet", action="store_true", help="suppress per-batch progress")
     parser.set_defaults(handler=commands.extract)
 
@@ -77,6 +78,8 @@ def _add_ablate(subparsers) -> None:
     parser.add_argument("--estimator", default="xgboost")
     parser.add_argument("--components", type=int, default=settings.pca_components)
     parser.add_argument("--seeds", default="42,7,99,123,2024", help="comma-separated twin seeds")
+    parser.add_argument("--severities", default="1", help="comma-separated inline severities")
+    parser.add_argument("--regimes", default="lab,inline", help="comma-separated imaging regimes")
     parser.add_argument("--signal-gain", type=float, default=settings.signal_gain)
     parser.add_argument("--oversample", type=int, default=4)
     parser.add_argument("--fit-seed", type=int, default=settings.seed)

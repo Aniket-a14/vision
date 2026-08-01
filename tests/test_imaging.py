@@ -47,10 +47,33 @@ def test_degradation_is_reproducible_for_a_seed(synthetic):
     np.testing.assert_array_equal(first, second)
 
 
-def test_severity_increases_pixel_noise(synthetic):
-    mild = degrade(synthetic, np.random.default_rng(3), InlineCamera(severity=0.2))
-    harsh = degrade(synthetic, np.random.default_rng(3), InlineCamera(severity=3.0))
-    assert harsh.std() > mild.std()
+def _distance_from_clean(image: np.ndarray, severity: float) -> float:
+    out = degrade(image, np.random.default_rng(3), InlineCamera(severity=severity))
+    return float(np.sqrt(((out.astype(float) - image.astype(float)) ** 2).mean()))
+
+
+def test_severity_moves_the_image_further_from_the_original(synthetic):
+    """Severity scales every channel, so pixel variance falls as detail is destroyed."""
+    distances = [_distance_from_clean(synthetic, s) for s in (0.2, 0.5, 1.0, 2.0, 3.0)]
+    assert distances == sorted(distances)
+
+
+def test_severity_monotonically_destroys_detail(synthetic):
+    sharpness = [
+        cv2.Laplacian(
+            degrade(synthetic, np.random.default_rng(3), InlineCamera(severity=s)).astype(
+                np.float32
+            ),
+            cv2.CV_32F,
+        ).var()
+        for s in (0.2, 0.5, 1.0, 2.0)
+    ]
+    assert sharpness == sorted(sharpness, reverse=True)
+
+
+def test_severity_never_inverts_the_image(synthetic):
+    """A negative gain would flip contrast rather than dim it."""
+    assert InlineCamera(severity=5.0).gain_bounds()[0] > 0.0
 
 
 def test_output_stays_in_byte_range(synthetic):

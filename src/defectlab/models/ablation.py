@@ -68,22 +68,27 @@ def degradation_sweep(
     return pd.DataFrame(rows)
 
 
+SPREAD = ("mean", "std", "min", "max")
+
+
 def summarise(results: pd.DataFrame) -> pd.DataFrame:
     """Spread across seeds; the number of alloy lots, not parts, sets the precision."""
-    grouped = results.groupby(["modality", "regime"])["roc_auc"]
-    return grouped.agg(["mean", "std", "min", "max"]).reset_index()
+    keys = _present(results, "modality", "regime", "severity")
+    return results.groupby(keys)["roc_auc"].agg(list(SPREAD)).reset_index()
 
 
 def fusion_gain(results: pd.DataFrame) -> pd.DataFrame:
     """Fusion minus vision, paired within seed so the image channel cancels out."""
-    wide = results.pivot_table(index=["seed", "regime"], columns="modality", values="roc_auc")
+    index = _present(results, "seed", "regime", "severity")
+    wide = results.pivot_table(index=index, columns="modality", values="roc_auc")
     delta = (wide[Modality.FUSION.value] - wide[Modality.VISION.value]).rename("delta")
-    return (
-        delta.reset_index()
-        .groupby("regime")["delta"]
-        .agg(["mean", "std", "min", "max"])
-        .reset_index()
-    )
+    keys = _present(results, "regime", "severity")
+    return delta.reset_index().groupby(keys)["delta"].agg(list(SPREAD)).reset_index()
+
+
+def _present(results: pd.DataFrame, *names: str) -> list[str]:
+    """A single-severity run has no severity column; the same helpers still apply."""
+    return [name for name in names if name in results.columns]
 
 
 def _iter_results(inputs: AblationInputs) -> Iterator[AblationResult]:
