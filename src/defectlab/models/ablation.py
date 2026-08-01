@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from ..imaging import Regime
 from .features import Modality, build_blocks
@@ -79,11 +80,26 @@ def summarise(results: pd.DataFrame) -> pd.DataFrame:
 
 def fusion_gain(results: pd.DataFrame) -> pd.DataFrame:
     """Fusion minus vision, paired within seed so the image channel cancels out."""
+    keys = _present(results, "regime", "severity")
+    deltas = _paired_deltas(results)
+    grouped = deltas.groupby(keys)["delta"]
+    tests = grouped.apply(_paired_test).unstack()
+    return grouped.agg(list(SPREAD)).join(tests).reset_index()
+
+
+def _paired_deltas(results: pd.DataFrame) -> pd.DataFrame:
+    """One delta per seed; the seed is the experimental unit, not the part."""
     index = _present(results, "seed", "regime", "severity")
     wide = results.pivot_table(index=index, columns="modality", values="roc_auc")
-    delta = (wide[Modality.FUSION.value] - wide[Modality.VISION.value]).rename("delta")
-    keys = _present(results, "regime", "severity")
-    return delta.reset_index().groupby(keys)["delta"].agg(list(SPREAD)).reset_index()
+    delta = wide[Modality.FUSION.value] - wide[Modality.VISION.value]
+    return delta.rename("delta").reset_index()
+
+
+def _paired_test(deltas: pd.Series) -> pd.Series:
+    """Seeds are few, so report t and p rather than leaning on a bootstrap."""
+    statistic, pvalue = stats.ttest_1samp(deltas, 0.0)
+    wins = int((deltas > 0.0).sum())
+    return pd.Series({"t": statistic, "p": pvalue, "wins": wins, "n": len(deltas)})
 
 
 def _present(results: pd.DataFrame, *names: str) -> list[str]:

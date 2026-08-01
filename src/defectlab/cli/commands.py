@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import logging
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +18,8 @@ from ..imaging import Regime
 from ..imaging.degrade import InlineCamera
 from ..imaging.features import cache_path, extract_cached
 from ..twin import FEATURES, TwinConfig, run_line, score
+
+LOG = logging.getLogger("defectlab.cli")
 
 
 def verify(args: argparse.Namespace) -> int:
@@ -71,21 +76,48 @@ def ablate(args: argparse.Namespace) -> int:
 
     seeds = [int(value) for value in args.seeds.split(",")]
     severities = [float(value) for value in args.severities.split(",")]
-    results = pd.concat([_ablate_seed(seed, severities, args) for seed in seeds], ignore_index=True)
+    clock = _Clock(len(seeds) * len(severities))
+    frames = [_ablate_seed(seed, severities, args, clock) for seed in seeds]
+    results = pd.concat(frames, ignore_index=True)
     print("\n" + summarise(results).round(4).to_string(index=False))
     print("\nfusion - vision, paired within seed:")
     print(fusion_gain(results).round(4).to_string(index=False))
     return _write_results(results, Path(args.out), args.backbone)
 
 
-def _ablate_seed(seed: int, severities: list[float], args: argparse.Namespace) -> pd.DataFrame:
+@dataclass(slots=True)
+class _Clock:
+    """Cell-level progress; a whole seed is 15 model fits and far too coarse to watch."""
+
+    total: int
+    done: int = 0
+    started: float = field(default_factory=time.perf_counter)
+
+    def tick(self, label: str) -> None:
+        self.done += 1
+        elapsed = time.perf_counter() - self.started
+        remaining = elapsed / self.done * (self.total - self.done)
+        LOG.info("%s  %d/%d  eta %s", label, self.done, self.total, _mmss(remaining))
+
+
+def _mmss(seconds: float) -> str:
+    minutes, remainder = divmod(int(max(seconds, 0.0)), 60)
+    return f"{minutes:02d}:{remainder:02d}"
+
+
+def _ablate_seed(
+    seed: int, severities: list[float], args: argparse.Namespace, clock: _Clock
+) -> pd.DataFrame:
     """Rebuild the twin once per seed; severity only changes the image side."""
+    LOG.info("seed %d: building twin", seed)
     config = TwinConfig(seed=seed, signal_gain=args.signal_gain)
     dataset = build_data.build(Path(args.root), config, oversample=args.oversample)
-    frames = [_ablate_severity(dataset, severity, args) for severity in severities]
+    frames = []
+    for severity in severities:
+        frames.append(_ablate_severity(dataset, severity, args))
+        clock.tick(f"seed {seed} severity {severity:g}")
     results = pd.concat(frames, ignore_index=True)
     results.insert(0, "seed", seed)
-    print(f"seed {seed} done")
     return results
 
 

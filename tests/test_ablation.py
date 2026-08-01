@@ -17,7 +17,9 @@ from defectlab.models.ablation import (
     RegimeData,
     component_ablation,
     degradation_sweep,
+    fusion_gain,
     run,
+    summarise,
 )
 from defectlab.models.pipeline import FitConfig
 from defectlab.twin import TwinConfig, run_line, score
@@ -106,3 +108,41 @@ def test_degradation_sweep_returns_a_row_per_severity_and_modality(inputs):
 def test_component_ablation_sweeps_pca_width(inputs):
     table = component_ablation(inputs, inputs.regimes[1], [8, 16])
     assert list(table["n_components"]) == [8, 16]
+
+
+def _tidy(gains: dict[float, list[float]]) -> pd.DataFrame:
+    """A results table with a known fusion-minus-vision gain per seed and severity."""
+    rows = []
+    for severity, per_seed in gains.items():
+        for seed, gain in enumerate(per_seed):
+            common = {"seed": seed, "severity": severity, "regime": "inline"}
+            rows.append({**common, "modality": "vision", "roc_auc": 0.90})
+            rows.append({**common, "modality": "fusion", "roc_auc": 0.90 + gain})
+    return pd.DataFrame(rows)
+
+
+def test_fusion_gain_recovers_the_planted_delta():
+    gain = fusion_gain(_tidy({1.0: [0.01, 0.02, 0.03]})).iloc[0]
+    assert gain["mean"] == pytest.approx(0.02)
+    assert gain["wins"] == 3
+    assert gain["n"] == 3
+
+
+def test_fusion_gain_pairs_within_seed_not_across_severities():
+    """Pooling severities would halve the reported spread and inflate significance."""
+    table = fusion_gain(_tidy({0.5: [0.00, 0.01, 0.02], 2.0: [0.04, 0.05, 0.06]}))
+    assert list(table["severity"]) == [0.5, 2.0]
+    assert table["mean"].tolist() == pytest.approx([0.01, 0.05])
+    assert table["std"].tolist() == pytest.approx([0.01, 0.01])
+
+
+def test_fusion_gain_reports_no_significance_when_seeds_disagree():
+    """Direction alone is not evidence; four of five seeds positive can still be noise."""
+    gain = fusion_gain(_tidy({1.0: [0.03, -0.02, 0.01, -0.03, 0.02]})).iloc[0]
+    assert gain["p"] > 0.05
+
+
+def test_summarise_keeps_severity_as_a_grouping_key():
+    table = summarise(_tidy({0.5: [0.01], 2.0: [0.05]}))
+    assert set(table.columns) >= {"modality", "regime", "severity", "mean", "std"}
+    assert len(table) == 2 * 2
