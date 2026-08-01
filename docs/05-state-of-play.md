@@ -5,7 +5,7 @@ Written 2026-08-01. Read this first when resuming; it is the only file that need
 ## Verify the build in one command
 
 ```
-./.venv/Scripts/python.exe -m pytest -q      # 221 tests
+./.venv/Scripts/python.exe -m pytest -q      # 243 tests
 ./.venv/Scripts/ruff.exe check . && ./.venv/Scripts/ruff.exe format --check .
 ./.venv/Scripts/lint-imports.exe             # 2 contracts, both KEPT
 ```
@@ -29,7 +29,8 @@ already cost one silent overnight run. `python -m pip` is also broken in this ve
 | `economics` | done — prior shift, PAF, Taguchi, sensitivity | `defectlab economics` |
 | `spc` | done — X-bar/R, I-MR, EWMA, Nelson 1–8 | no CLI yet |
 | `prescribe` | done — interventional surrogate, ramp-limited advice | `defectlab prescribe` |
-| `export` | done — validated star schema for the dashboard | `defectlab export` |
+| `export` | done — validated star schema + generated PBIP | `defectlab export` |
+| `api` | done — score, prescribe, SSE stream, hash-chained audit | `defectlab serve` |
 | `api` | **not started** | — |
 
 Not started beyond the package: React app, MQTT simulator, deploy, offline bundle, report,
@@ -108,6 +109,27 @@ grains, and they must not be merged:
 Building the SPC page on the evaluation set signalled on 48 % of points, all of it an artefact
 of row order. That mistake is the reason the two grains are separate.
 
+## The serving layer
+
+`defectlab serve` runs it; verified live. The model is fitted at startup (deterministic given
+the seed, so a restart serves an identical model — which is what makes the audit hashes mean
+anything across a redeploy).
+
+- `POST /score` — prior-corrected risk, conformal prediction set, and the audit hash of the
+  decision. **Process telemetry only, no images**: a real cell has telemetry for every shot but
+  a photograph only for parts that reach the camera, so this is where the process channel earns
+  its keep. The fusion model is the offline result; this is the online one.
+- `GET /stream` — SSE, not WebSockets: the traffic is one-way, so plain HTTP survives proxies
+  and reconnects itself. `?limit=` bounds it; without it the feed runs forever.
+- `GET /audit` — walks the hash chain from genesis and reports the first index that fails.
+- Requests are validated against the twin's machine limits, so an impossible shot is rejected
+  (422) and **never reaches the audit log** — a decision that was never made must not appear to
+  have been made.
+
+**The audit chain proves integrity and ordering, not authenticity.** Anyone who can append can
+recompute the chain from genesis. Real tamper-evidence needs the head published somewhere the
+writer does not control. Say this before an examiner does.
+
 ## Conventions that are load-bearing
 
 - **Layer contract in `pyproject.toml` is enforced.** `economics` sits *below* `models`, so it
@@ -130,7 +152,9 @@ of row order. That mistake is the reason the two grains are separate.
    from `export/schema.py` so they cannot drift). **Read `docs/06-powerbi.md`** — it has the
    page-by-page build guide. Open the PBIP in Desktop, lay out four pages, File → Save As.
    This is the last manual step on the hard rubric item and it is maybe an hour.
-2. **`api`** — FastAPI + SSE, MQTT line simulator, hash-chained audit log.
+2. **MQTT line simulator** — the streaming producer for the live demo. The SSE feed already
+   works without it; MQTT is what makes it look like a real line rather than a web app talking
+   to itself.
 3. React app, deploy, offline bundle, report, slides.
 
 A note on ordering, learned the hard way: breadth-first beats depth-first here. Adding seeds to

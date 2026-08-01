@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_economics(subparsers)
     _add_prescribe(subparsers)
     _add_export(subparsers)
+    _add_serve(subparsers)
     _add_gates(subparsers)
     return parser
 
@@ -169,6 +170,16 @@ def _add_export(subparsers) -> None:
     parser.add_argument("--no-pbip", action="store_true", help="write the CSVs only")
     _add_twin_arguments(parser)
     parser.set_defaults(handler=commands.export)
+
+
+def _add_serve(subparsers) -> None:
+    parser = subparsers.add_parser("serve", help="run the scoring API and live SSE feed")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--estimator", default="xgboost")
+    parser.add_argument("--seed", type=int, default=settings.seed)
+    parser.add_argument("--quiet", action="store_true")
+    parser.set_defaults(handler=commands.serve)
 
 
 def _add_gates(subparsers) -> None:

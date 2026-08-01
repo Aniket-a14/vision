@@ -398,6 +398,21 @@ def _attribution_frame(model, blocks):
     return attribute(model, blocks.test, blocks.names).frame()
 
 
+def serve(args: argparse.Namespace) -> int:
+    """Run the scoring API. The model is fitted at startup, so the first request is not slow."""
+    import uvicorn
+
+    from ..api.app import create_app
+
+    uvicorn.run(
+        create_app(seed=args.seed, estimator=args.estimator),
+        host=args.host,
+        port=args.port,
+        log_level="warning" if args.quiet else "info",
+    )
+    return 0
+
+
 def gates(args: argparse.Namespace) -> int:
     """Report the Gate 1 and Gate 2 diagnostics without training anything heavy."""
     config = TwinConfig(seed=args.seed, noise_sd=args.noise_sd, signal_gain=args.signal_gain)
