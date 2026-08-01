@@ -1,5 +1,6 @@
 """The dashboard data contract: a star schema written to CSV and validated on write."""
 
+from .powerbi import write_project
 from .schema import TABLES, TableSpec, spec
 from .spc_view import parameter_chart, risk_chart
 from .tables import ExportInputs
@@ -16,4 +17,5 @@ __all__ = [
     "spec",
     "validate",
     "write",
+    "write_project",
 ]

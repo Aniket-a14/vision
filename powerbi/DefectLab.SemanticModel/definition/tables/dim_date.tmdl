@@ -1,0 +1,43 @@
+table dim_date
+
+	column date
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: date
+		formatString: General Date
+
+	column year
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: year
+
+	column month
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: month
+
+	column day
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: day
+
+	column weekday
+		dataType: string
+		summarizeBy: none
+		sourceColumn: weekday
+
+	column shift_label
+		dataType: string
+		summarizeBy: none
+		sourceColumn: shift_label
+
+	partition dim_date = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\dim_date.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"date", type datetime}, {"year", Int64.Type}, {"month", Int64.Type}, {"day", Int64.Type}, {"weekday", type text}, {"shift_label", type text}})
+				in
+				    Typed
+

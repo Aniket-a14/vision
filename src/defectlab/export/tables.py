@@ -35,7 +35,11 @@ RULE_DESCRIPTIONS: dict[str, str] = {
     "four_of_five_beyond_1": "Four of five points beyond 1 sigma, same side",
     "fifteen_hugging": "Fifteen points inside 1 sigma: stratification",
     "eight_avoiding": "Eight points outside 1 sigma: a bimodal process",
+    "moving_range": "Moving range out of limits: the spread changed, not the mean",
 }
+
+# Named here rather than imported from spc_view, which sits above this module.
+RANGE_RULE = "moving_range"
 
 OUTCOMES = ("true_negative", "false_positive", "false_negative", "true_positive")
 
@@ -140,11 +144,18 @@ def dim_group(_: ExportInputs | None = None) -> pd.DataFrame:
 
 
 def dim_rule(_: ExportInputs | None = None) -> pd.DataFrame:
+    """Includes the moving-range signal, which is not one of Nelson's eight.
+
+    `fact_spc` can name it, so the dimension must contain it or the model loses referential
+    integrity and those rows drop silently out of every rule slicer.
+    """
+    names = [*RULES, RANGE_RULE]
+    numbers = [*range(1, len(RULES) + 1), 0]
     return pd.DataFrame(
         {
-            "rule": list(RULES),
-            "number": list(range(1, len(RULES) + 1)),
-            "description": [RULE_DESCRIPTIONS[name] for name in RULES],
+            "rule": names,
+            "number": numbers,
+            "description": [RULE_DESCRIPTIONS[name] for name in names],
         }
     )
 

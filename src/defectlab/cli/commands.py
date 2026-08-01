@@ -356,6 +356,19 @@ def export(args: argparse.Namespace) -> int:
     written = write(inputs, Path(args.out))
     for name, path in written.items():
         print(f"{name:<18} {path}")
+    return _write_powerbi_project(Path(args.out), args)
+
+
+def _write_powerbi_project(exports: Path, args: argparse.Namespace) -> int:
+    """A .pbix is binary and only Desktop can author it; PBIP is its plain-text equivalent."""
+    from ..export import write_project
+
+    if args.no_pbip:
+        return 0
+    project = Path(args.pbip)
+    write_project(project, exports.resolve())
+    print(f"\npower bi project  {project / 'DefectLab.pbip'}")
+    print("open it in Power BI Desktop, then File > Save As to produce the .pbix")
     return 0
 
 

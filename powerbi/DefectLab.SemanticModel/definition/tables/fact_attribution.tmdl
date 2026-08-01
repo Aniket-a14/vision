@@ -1,0 +1,27 @@
+table fact_attribution
+
+	column shot_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: shot_id
+
+	column group
+		dataType: string
+		summarizeBy: none
+		sourceColumn: group
+
+	column contribution
+		dataType: double
+		summarizeBy: none
+		sourceColumn: contribution
+
+	partition fact_attribution = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\fact_attribution.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"shot_id", Int64.Type}, {"group", type text}, {"contribution", type number}})
+				in
+				    Typed
+

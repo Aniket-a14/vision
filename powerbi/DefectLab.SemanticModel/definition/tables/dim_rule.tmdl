@@ -1,0 +1,27 @@
+table dim_rule
+
+	column rule
+		dataType: string
+		summarizeBy: none
+		sourceColumn: rule
+
+	column number
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: number
+
+	column description
+		dataType: string
+		summarizeBy: none
+		sourceColumn: description
+
+	partition dim_rule = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\dim_rule.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"rule", type text}, {"number", Int64.Type}, {"description", type text}})
+				in
+				    Typed
+

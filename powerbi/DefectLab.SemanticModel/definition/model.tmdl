@@ -1,0 +1,18 @@
+model Model
+	culture: en-GB
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	discourageImplicitMeasures
+	sourceQueryCulture: en-GB
+
+ref table fact_shot
+ref table fact_production
+ref table fact_attribution
+ref table fact_spc
+ref table fact_cost_curve
+ref table dim_parameter
+ref table dim_group
+ref table dim_rule
+ref table dim_date
+ref table Measures
+
+ref cultures en-GB

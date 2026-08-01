@@ -165,6 +165,8 @@ def _add_export(subparsers) -> None:
     parser.add_argument("--oversample", type=int, default=4)
     parser.add_argument("--prevalence", type=float, default=settings.target_defect_rate)
     parser.add_argument("--line-shots", type=int, default=1440, help="one day of production")
+    parser.add_argument("--pbip", default="powerbi", help="where to write the Power BI project")
+    parser.add_argument("--no-pbip", action="store_true", help="write the CSVs only")
     _add_twin_arguments(parser)
     parser.set_defaults(handler=commands.export)
 

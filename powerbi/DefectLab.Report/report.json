@@ -1,0 +1,47 @@
+{
+  "config": "{\"version\": \"5.43\", \"activeSectionIndex\": 0}",
+  "layoutOptimization": 0,
+  "resourcePackages": [],
+  "sections": [
+    {
+      "name": "page0",
+      "displayName": "Line overview",
+      "ordinal": 0,
+      "visualContainers": [],
+      "config": "{}",
+      "width": 1280,
+      "height": 720,
+      "displayOption": 1
+    },
+    {
+      "name": "page1",
+      "displayName": "Why this part",
+      "ordinal": 1,
+      "visualContainers": [],
+      "config": "{}",
+      "width": 1280,
+      "height": 720,
+      "displayOption": 1
+    },
+    {
+      "name": "page2",
+      "displayName": "Cost of quality",
+      "ordinal": 2,
+      "visualContainers": [],
+      "config": "{}",
+      "width": 1280,
+      "height": 720,
+      "displayOption": 1
+    },
+    {
+      "name": "page3",
+      "displayName": "Process control",
+      "ordinal": 3,
+      "visualContainers": [],
+      "config": "{}",
+      "width": 1280,
+      "height": 720,
+      "displayOption": 1
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+table fact_production
+
+	column shot_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: shot_id
+
+	column timestamp
+		dataType: dateTime
+		summarizeBy: none
+		sourceColumn: timestamp
+		formatString: General Date
+
+	column lot_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: lot_id
+
+	column die_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: die_id
+
+	column shift_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: shift_id
+
+	column risk
+		dataType: double
+		summarizeBy: none
+		sourceColumn: risk
+
+	column label
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: label
+
+	column date = DATEVALUE(fact_production[timestamp])
+		dataType: dateTime
+		formatString: Short Date
+		summarizeBy: none
+
+	partition fact_production = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\fact_production.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"shot_id", Int64.Type}, {"timestamp", type datetime}, {"lot_id", Int64.Type}, {"die_id", Int64.Type}, {"shift_id", Int64.Type}, {"risk", type number}, {"label", Int64.Type}})
+				in
+				    Typed
+

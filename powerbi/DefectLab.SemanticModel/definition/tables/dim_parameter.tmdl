@@ -1,0 +1,52 @@
+table dim_parameter
+
+	column parameter
+		dataType: string
+		summarizeBy: none
+		sourceColumn: parameter
+
+	column unit
+		dataType: string
+		summarizeBy: none
+		sourceColumn: unit
+
+	column nominal
+		dataType: double
+		summarizeBy: none
+		sourceColumn: nominal
+
+	column lower
+		dataType: double
+		summarizeBy: none
+		sourceColumn: lower
+
+	column upper
+		dataType: double
+		summarizeBy: none
+		sourceColumn: upper
+
+	column actionability
+		dataType: string
+		summarizeBy: none
+		sourceColumn: actionability
+
+	column group
+		dataType: string
+		summarizeBy: none
+		sourceColumn: group
+
+	column is_lever
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: is_lever
+
+	partition dim_parameter = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\dim_parameter.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"parameter", type text}, {"unit", type text}, {"nominal", type number}, {"lower", type number}, {"upper", type number}, {"actionability", type text}, {"group", type text}, {"is_lever", Int64.Type}})
+				in
+				    Typed
+

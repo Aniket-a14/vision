@@ -5,7 +5,7 @@ Written 2026-08-01. Read this first when resuming; it is the only file that need
 ## Verify the build in one command
 
 ```
-./.venv/Scripts/python.exe -m pytest -q      # 210 tests
+./.venv/Scripts/python.exe -m pytest -q      # 221 tests
 ./.venv/Scripts/ruff.exe check . && ./.venv/Scripts/ruff.exe format --check .
 ./.venv/Scripts/lint-imports.exe             # 2 contracts, both KEPT
 ```
@@ -124,11 +124,12 @@ of row order. That mistake is the reason the two grains are separate.
 
 ## Next, in order
 
-1. **Power BI `.pbix`** — hard rubric requirement, still at zero, but now *unblocked*:
-   `defectlab export` writes the full star schema to `data/exports/`. A `.pbix` is a binary
-   container only Power BI Desktop (installed on this machine) can author; the text-authorable
-   route is a PBIP project opened in Desktop and saved as `.pbix`. **Do this before the API if
-   time gets short**; the API is impressive but not marked, and the `.pbix` is.
+1. **Power BI `.pbix`** — the semantic model is **done and generated**; only the visuals and
+   the Save As remain. `defectlab export` writes `data/exports/*.csv` and
+   `powerbi/DefectLab.pbip` (9 typed tables, 5 relationships, 15 DAX measures, all generated
+   from `export/schema.py` so they cannot drift). **Read `docs/06-powerbi.md`** — it has the
+   page-by-page build guide. Open the PBIP in Desktop, lay out four pages, File → Save As.
+   This is the last manual step on the hard rubric item and it is maybe an hour.
 2. **`api`** — FastAPI + SSE, MQTT line simulator, hash-chained audit log.
 3. React app, deploy, offline bundle, report, slides.
 

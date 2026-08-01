@@ -1,0 +1,20 @@
+relationship rel_0
+	fromColumn: fact_attribution.shot_id
+	toColumn: fact_shot.shot_id
+
+relationship rel_1
+	fromColumn: fact_attribution.group
+	toColumn: dim_group.group
+
+relationship rel_2
+	fromColumn: fact_spc.shot_id
+	toColumn: fact_production.shot_id
+
+relationship rel_3
+	fromColumn: fact_spc.rule
+	toColumn: dim_rule.rule
+
+relationship rel_4
+	fromColumn: fact_production.date
+	toColumn: dim_date.date
+

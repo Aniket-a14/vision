@@ -1,0 +1,22 @@
+table dim_group
+
+	column group
+		dataType: string
+		summarizeBy: none
+		sourceColumn: group
+
+	column description
+		dataType: string
+		summarizeBy: none
+		sourceColumn: description
+
+	partition dim_group = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\dim_group.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"group", type text}, {"description", type text}})
+				in
+				    Typed
+

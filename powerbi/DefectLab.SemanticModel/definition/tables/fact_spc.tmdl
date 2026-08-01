@@ -1,0 +1,52 @@
+table fact_spc
+
+	column shot_id
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: shot_id
+
+	column chart
+		dataType: string
+		summarizeBy: none
+		sourceColumn: chart
+
+	column value
+		dataType: double
+		summarizeBy: none
+		sourceColumn: value
+
+	column centre
+		dataType: double
+		summarizeBy: none
+		sourceColumn: centre
+
+	column lower
+		dataType: double
+		summarizeBy: none
+		sourceColumn: lower
+
+	column upper
+		dataType: double
+		summarizeBy: none
+		sourceColumn: upper
+
+	column signal
+		dataType: int64
+		summarizeBy: none
+		sourceColumn: signal
+
+	column rule
+		dataType: string
+		summarizeBy: none
+		sourceColumn: rule
+
+	partition fact_spc = m
+		mode: import
+		source =
+				let
+				    Source = Csv.Document(File.Contents(ExportFolder & "\fact_spc.csv"), [Delimiter=",", Encoding=65001, QuoteStyle=QuoteStyle.Csv]),
+				    Promoted = Table.PromoteHeaders(Source, [PromoteAllScalars=true]),
+				    Typed = Table.TransformColumnTypes(Promoted, {{"shot_id", Int64.Type}, {"chart", type text}, {"value", type number}, {"centre", type number}, {"lower", type number}, {"upper", type number}, {"signal", Int64.Type}, {"rule", type text}})
+				in
+				    Typed
+
